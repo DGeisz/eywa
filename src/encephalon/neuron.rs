@@ -1,29 +1,36 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use rand::{Rng, random};
 
 pub struct Neuron {
+    neuron_type: NeuronType,
+
     internal_charge: RefCell<f32>,
     threshold: f32,
     just_fired: bool,
+
+    max_axon_synapses: usize,
     axon_synapses: Vec<Synapse>,
 }
 
+pub enum NeuronType {
+    Sensor(f32),
+    Generic
+}
+
 impl Neuron {
-    pub fn new() -> Neuron {
+    pub fn new(neuron_type: NeuronType) -> Neuron {
         Neuron {
+            neuron_type,
             internal_charge: RefCell::new(0.),
             threshold: 10.,
             just_fired: false,
+            max_axon_synapses: 20,
             axon_synapses: Vec::new()
         }
     }
 
-    pub fn create_synapse(&mut self, target_neuron: &Rc<Neuron>) {
-        self.axon_synapses.push(
-            Synapse::new(Rc::clone(target_neuron), SynapticType::Excitatory));
-    }
-
-    pub fn run_cycle(&mut self) {
+    pub fn run_cycle(&mut self, neuron_pool: &Vec<Rc<Neuron>>) {
         self.prune_synapses();
 
         let mut internal_charge = self.internal_charge.borrow_mut();
@@ -35,6 +42,21 @@ impl Neuron {
         } else {
             self.just_fired = false;
         }
+    }
+
+    fn create_random_synapse(&mut self, neuron_pool: &Vec<Rc<Neuron>>) {
+        if self.axon_synapses.len() < self.max_axon_synapses {
+            let random_index = rand::thread_rng().gen_range(0, neuron_pool.len());
+
+            if let Some(neuron) = neuron_pool.get(random_index) {
+                self.create_synapse(neuron);
+            }
+        }
+    }
+
+    pub fn create_synapse(&mut self, target_neuron: &Rc<Neuron>) {
+        self.axon_synapses.push(
+            Synapse::new(Rc::clone(target_neuron), SynapticType::Excitatory));
     }
 
     fn prune_synapses(&mut self) {
