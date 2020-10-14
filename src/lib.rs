@@ -1,4 +1,6 @@
 mod encephalon;
+mod neuron;
+mod neuron_interfaces;
 
 pub mod eywa {
 
