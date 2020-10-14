@@ -20,7 +20,7 @@ pub trait RxNeuronic {
 
 /// Here Fx stands for "flex" (don't confuse this with
 /// Rx or Tx, it has nothing to do with transmission, I
-/// just like the symmetry).  Any neuron that displays
+/// just like the lexical symmetry).  Any neuron that displays
 /// some level of plasticity implements FxNeuronic.
 ///
 /// Here plasticity refers to neurons whose synapses strengthen,
@@ -31,7 +31,6 @@ pub trait FxNeuronic {
 }
 
 pub struct SensoryNeuron {
-    pub alpha: f32, //This is the exp moving average constant.  Must be a value between 0 and 1
     period: RefCell<u32>, //This is the period at which the neuron fires
 }
 
