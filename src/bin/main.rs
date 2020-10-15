@@ -13,6 +13,12 @@ fn main() {
 
     let vector2 = vec![1.1, 2.3, 3.5];
 
+    let b = 2;
+
+    let c = yote(b);
+
+    println!("This is b: {}", b);
+
     let a = 1.clone();
     match map.get(&format!("{:?}", vector2)) {
         Some(strang) => println!("Got this string {}", strang),
@@ -20,4 +26,8 @@ fn main() {
     }
     println!("This is vec: {:?}", vector);
     println!("This is uuid: {}", second);
+}
+
+fn yote(a: i32) -> i32 {
+    a + 1
 }

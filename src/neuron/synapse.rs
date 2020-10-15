@@ -1,9 +1,10 @@
+use super::RxNeuronic;
 use std::cell::RefCell;
 use std::rc::Rc;
-use super:: RxNeuronic;
 
 /// All synapses have the capability to fire
 pub trait Synapse {
+    /// Fires the synapse. Pretty basic
     fn fire(&self);
 }
 
@@ -20,15 +21,21 @@ pub struct PlasticSynapse {
     growth_parameter: f32, //Must be between 0 and 1
     decay_parameter: f32,  //Must be between 0 and 1
     synaptic_type: SynapticType,
-    pub target: Rc<dyn RxNeuronic>
+    pub target: Rc<dyn RxNeuronic>,
 }
 
 impl PlasticSynapse {
+    /// Strengthens the connection of the synapse, which
+    /// means it both lasts longer, and imparts a greater
+    /// impulse on its target whilst firing
     pub fn strengthen(&self) {
         let mut strength = self.strength.borrow_mut();
         *strength += (self.max_impulse - *strength) * self.growth_parameter;
     }
 
+    /// Weakens the connection of the synapse, which means
+    /// it decreases its lifetime and imparts a smaller
+    /// impulse on its target whilst firing
     pub fn decay(&self) {
         *self.strength.borrow_mut() *= self.decay_parameter;
     }
@@ -47,7 +54,7 @@ impl Synapse for PlasticSynapse {
 pub struct StaticSynapse {
     strength: f32,
     synaptic_type: SynapticType,
-    pub target: Rc<dyn RxNeuronic>
+    pub target: Rc<dyn RxNeuronic>,
 }
 
 impl Synapse for StaticSynapse {

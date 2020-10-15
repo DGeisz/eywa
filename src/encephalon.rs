@@ -1,3 +1,4 @@
+use super::neuron::ChargeCycle;
 use std::cell::RefCell;
 
 /// This is the brains of the operation (lol).
@@ -16,5 +17,13 @@ pub struct Encephalon {
 impl Encephalon {
     pub fn get_cycle_count(&self) -> u32 {
         *self.cycle_count.borrow() as u32
+    }
+
+    pub fn get_charge_cycle(&self) -> ChargeCycle {
+        if *self.cycle_count.borrow() % 2 == 0 {
+            ChargeCycle::Even
+        } else {
+            ChargeCycle::Odd
+        }
     }
 }

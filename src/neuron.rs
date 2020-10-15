@@ -1,7 +1,7 @@
 use super::encephalon::Encephalon;
+use super::neuron_interfaces::ActuatorInterface;
 use std::cell::RefCell;
 use std::rc::Rc;
-use super::neuron_interfaces::ActuatorInterface;
 
 mod synapse;
 use synapse::{PlasticSynapse, StaticSynapse, Synapse};
@@ -9,7 +9,6 @@ use synapse::{PlasticSynapse, StaticSynapse, Synapse};
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
     fn run_cycle(&self);
-    fn fire(&self);
 }
 
 /// Neurons that transmit (hence Tx) impulses to
@@ -38,6 +37,72 @@ pub trait RxNeuronic {
     fn just_fired(&self) -> bool;
 }
 
+/// This represents the internal charge of
+/// an RxNeuron.  There are two slots to
+/// prevent conflicts that happen inherently
+/// in the graphical structure of the encephalon
+/// (I.e. neurons fires before it receives all
+/// proper impulses, or neuron doesn't fire even
+/// though it would have received enough impulse
+/// later in this cycle)
+pub struct InternalCharge(f32, f32);
+
+impl InternalCharge {
+    fn get_charge(&self, cycle: ChargeCycle) -> f32 {
+        match cycle {
+            ChargeCycle::Even => self.0,
+            ChargeCycle::Odd => self.1,
+        }
+    }
+
+    fn set_charge(&mut self, cycle: ChargeCycle, charge: f32) {
+        match cycle {
+            ChargeCycle::Even => self.0 = charge,
+            ChargeCycle::Odd => self.1 = charge,
+        }
+    }
+
+    fn incr_next_charge(&mut self, cycle: ChargeCycle, incr_charge: f32) {
+        let next_cycle = cycle.next_cycle();
+        self.set_charge(next_cycle, self.get_charge(next_cycle) + incr_charge);
+    }
+}
+
+/// Represents one of two different types of
+/// Internal Charge Cycles that occur within
+/// a neuron.  Again, this is used to prevent
+/// encephalon graphical conflicts
+#[derive(Copy, Clone)]
+pub enum ChargeCycle {
+    Even,
+    Odd,
+}
+
+impl ChargeCycle {
+    fn next_cycle(&self) -> ChargeCycle {
+        match self {
+            ChargeCycle::Even => ChargeCycle::Odd,
+            ChargeCycle::Odd => ChargeCycle::Even,
+        }
+    }
+
+    /// Don't let the implementation confuse you.
+    /// Think of this as a black box.  It just happens
+    /// to be the case that previous cycle and next cycle
+    /// are the same
+    fn prev_cycle(&self) -> ChargeCycle {
+        self.next_cycle()
+    }
+
+    /// Refers to the cycle before the previous cycle.
+    /// Again, don't get lost in the sauce.  It just so
+    /// happens that this cycle and prev prev cycle are the
+    /// same.  Using this methods will make prune_neurons
+    /// much more understandable
+    fn prev_prev_cycle(&self) -> ChargeCycle {
+        self.clone()
+    }
+}
 
 /// Here Fx stands for "flex" (don't confuse this with
 /// Rx or Tx, it has nothing to do with transmission, I
@@ -54,6 +119,49 @@ pub trait FxNeuronic {
 
     /// Creates new synapse
     fn form_synapse(&mut self);
+}
+
+/// Tracks if neurons fired at particular cycles
+struct FireTracker {
+    values: (bool, bool),
+    last_recorded_current_cycle: ChargeCycle,
+    prev_prev: bool,
+}
+
+impl FireTracker {
+    /// Returns true if the neuron fired on the previous cycle
+    fn fired_on_prev_cycle(&self, cycle: ChargeCycle) -> bool {
+        match cycle.next_cycle() {
+            ChargeCycle::Even => self.values.0,
+            ChargeCycle::Odd => self.values.1,
+        }
+    }
+
+    /// Returns true if the neuron fired two cycles ago
+    fn fired_on_prev_prev(&self, cycle: ChargeCycle) -> bool {
+        if self.last_recorded_current_cycle == cycle {
+            self.prev_prev
+        } else {
+            match cycle {
+                ChargeCycle::Even => self.values.0,
+                ChargeCycle::Odd => self.values.1,
+            }
+        }
+    }
+
+    /// Sets the tracker for the current cycle
+    fn set_tracker(&mut self, cycle: ChargeCycle, fired: bool) {
+        self.last_recorded_current_cycle = cycle;
+        self.prev_prev = match cycle {
+            ChargeCycle::Even => self.values.0,
+            ChargeCycle::Odd => self.values.1
+        };
+
+        match cycle {
+            ChargeCycle::Even => self.values.0 = fired,
+            ChargeCycle::Odd => self.values.1 = fired,
+        }
+    }
 }
 
 /// A neuron that sends encoded sensory information into
@@ -75,12 +183,8 @@ impl<'a> SensoryNeuron<'a> {
 impl Neuronic for SensoryNeuron<'_> {
     fn run_cycle(&self) {
         if self.encephalon.get_cycle_count() % *self.period.borrow() == 0 {
-            self.fire();
+            self.fire_synapses();
         }
-    }
-
-    fn fire(&self) {
-        self.fire_synapses();
     }
 }
 
@@ -123,43 +227,23 @@ impl FxNeuronic for SensoryNeuron<'_> {
 /// sends its average frequency (calculated via EMA)
 /// to an ActuatorInterface
 pub struct ActuatorNeuron<'a> {
+    encephalon: &'a Encephalon,
     pub just_fired: bool,
-    internal_charge: RefCell<f32>,
+    internal_charge: RefCell<InternalCharge>,
     interface: &'a ActuatorInterface<'a>,
+    ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
+    alpha: f32,        //The constant of the exponential moving average
 }
 
 impl Neuronic for ActuatorNeuron<'_> {
-    fn run_cycle(&self) {
-
-    }
-
-    fn fire(&self) {
-
-    }
+    fn run_cycle(&self) {}
 }
 
 impl RxNeuronic for ActuatorNeuron<'_> {
     fn intake_synaptic_impulse(&self, charge: f32) {
-        *self.internal_charge.borrow_mut() += charge;
-    }
-
-    fn just_fired(&self) -> bool {
-        self.just_fired
-    }
-}
-
-/// This is a neuron that is essentially fixed in a
-/// particular location, typically between a sensor neuron
-/// and an actuator neuron
-pub struct ReflexNeuron {
-    //TODO: Determine if I even need this in the face of
-    // Static synapses, and impl if so
-    pub just_fired: bool,
-}
-
-impl RxNeuronic for ReflexNeuron {
-    fn intake_synaptic_impulse(&self, impulse: f32) {
-        //TODO: Impl this
+        self.internal_charge
+            .borrow_mut()
+            .incr_next_charge(self.encephalon.get_charge_cycle(), charge);
     }
 
     fn just_fired(&self) -> bool {
@@ -180,6 +264,25 @@ impl RxNeuronic for PlasticNeuron {
     fn intake_synaptic_impulse(&self, impulse: f32) {
         //TODO: Impl this
     }
+    fn just_fired(&self) -> bool {
+        self.just_fired
+    }
+}
+
+/// This is a neuron that is essentially fixed in a
+/// particular location, typically between a sensor neuron
+/// and an actuator neuron
+pub struct ReflexNeuron {
+    //TODO: Determine if I even need this in the face of
+    // Static synapses, and impl if so
+    pub just_fired: bool,
+}
+
+impl RxNeuronic for ReflexNeuron {
+    fn intake_synaptic_impulse(&self, impulse: f32) {
+        //TODO: Impl this
+    }
+
     fn just_fired(&self) -> bool {
         self.just_fired
     }
