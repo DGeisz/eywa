@@ -7,15 +7,15 @@ use super::actuator::Actuator;
 /// A sensory interface is an interface between
 /// an analog sensor with a defined max and min value
 /// and a sensory neuron
-struct SensoryInterface {
+struct SensoryInterface<'a> {
     max: f32,
     min: f32,
     current_input: Option<f32>,
     encoder: Encoder,
-    sensory_neuron: Rc<SensoryNeuron>
+    sensory_neuron: Rc<SensoryNeuron<'a>>
 }
 
-impl SensoryInterface {
+impl SensoryInterface<'_> {
 
     fn new(max: f32, min: f32, encoder: Encoder,
            sensory_neuron: Rc<SensoryNeuron>) -> SensoryInterface {

@@ -13,6 +13,7 @@ fn main() {
 
     let vector2 = vec![1.1, 2.3, 3.5];
 
+    let a = 1.clone();
     match map.get(&format!("{:?}", vector2)) {
         Some(strang) => println!("Got this string {}", strang),
         None => println!("Didn't get anything")

@@ -1,4 +1,9 @@
 use std::cell::RefCell;
+use std::rc::Rc;
+use super::encephalon::Encephalon;
+
+mod synapse;
+use synapse::{PlasticSynapse, Synapse};
 
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
@@ -12,10 +17,39 @@ pub trait TxNeuronic {
     fn fire_synapses(&self);
 }
 
+/// Enum of all different neurons that implement
+/// the the trait RxNeuronic
+pub enum TxNeuron<'a> {
+    Sensory(Rc<SensoryNeuron<'a>>),
+    Plastic(Rc<PlasticNeuron>),
+    Reflex(Rc<ReflexNeuron>)
+}
+
 /// Neurons that receive (hence Rx) impulses from
 /// other neurons implement the RxNeuronic trait
 pub trait RxNeuronic {
-    fn intake_synaptic_impulse(&mut self);
+    fn intake_synaptic_impulse(&self, impulse: f32);
+}
+
+/// Enum of all different neurons that implement
+/// the the trait RxNeuronic
+pub enum RxNeuron {
+    Plastic(Rc<PlasticNeuron>),
+    Actuator(Rc<ActuatorNeuron>),
+    Reflex(Rc<ReflexNeuron>)
+}
+
+impl RxNeuron {
+
+    /// Umbrella method to determine if the RxNeuron just
+    /// fired or not
+    fn did_just_fire(&self) -> bool {
+        match self {
+            Self::Plastic(neuron_ref) => (**neuron_ref).just_fired,
+            Self::Actuator(neuron_ref) => (**neuron_ref).just_fired,
+            Self::Reflex(neuron_ref) => (**neuron_ref).just_fired,
+        }
+    }
 }
 
 /// Here Fx stands for "flex" (don't confuse this with
@@ -26,23 +60,162 @@ pub trait RxNeuronic {
 /// Here plasticity refers to neurons whose synapses strengthen,
 /// weaken, dissolve, or appear over time
 pub trait FxNeuronic {
+
+    /// Strengthens or decays plastic synapses and dissolves
+    /// synapses whose strength has fallen beneath it's
+    /// weakness threshold
     fn prune_synapses(&mut self);
+
+    /// Creates new synapse
     fn form_synapse(&mut self);
 }
 
-pub struct SensoryNeuron {
+/// A neuron that sends encoded sensory information into
+/// an encephalon
+pub struct SensoryNeuron<'a> {
+    encephalon: &'a Encephalon,
     period: RefCell<u32>, //This is the period at which the neuron fires
+    axon_synapses: Vec<PlasticSynapse>,
+    pub just_fired: bool,
 }
 
-impl SensoryNeuron {
+impl<'a> SensoryNeuron<'a> {
     pub fn set_period(&self, period: u32) {
         *self.period.borrow_mut() = period;
     }
 }
 
+impl Neuronic for SensoryNeuron<'_> {
+    fn run_cycle(&self) {
+        if self.encephalon.get_cycle_count() % *self.period.borrow() == 0 {
+            self.fire();
+        }
+    }
+
+    fn fire(&self) {
+        self.fire_synapses();
+    }
+}
+
+impl TxNeuronic for SensoryNeuron<'_> {
+    fn fire_synapses(&self) {
+        for synapse in &self.axon_synapses {
+            synapse.fire();
+        }
+    }
+}
+
+impl FxNeuronic for SensoryNeuron<'_> {
+    fn prune_synapses(&mut self) {
+        let synapses = &mut self.axon_synapses;
+        let synapses_fired = self.just_fired;
+
+        synapses.retain(|synapse| {
+            if synapses_fired {
+                if synapse.target.did_just_fire() {
+                    synapse.strengthen();
+                } else {
+                    synapse.decay();
+                }
+            }
+            let strength = synapse.strength.borrow();
+            *strength > synapse.weakness_threshold
+        })
+    }
+
+    fn form_synapse(&mut self) {
+
+    }
+}
+
+/// A neuron that receives impulses but only
+/// sends its average frequency (calculated via EMA)
+/// to an ActuatorInterface
+pub struct ActuatorNeuron {
+   //TODO: Impl this
+   pub just_fired: bool,
+}
+
+impl RxNeuronic for ActuatorNeuron {
+    fn intake_synaptic_impulse(&self, impulse: f32) {
+        //TODO: Impl this
+    }
+}
+
+/// This is a neuron that is essentially fixed in a
+/// particular location, typically between a sensor neuron
+/// and an actuator neuron
+pub struct ReflexNeuron {
+    //TODO: Determine if I even need this in the face of
+    // Static synapses, and impl if so
+    pub just_fired: bool,
+}
+
+impl RxNeuronic for ReflexNeuron {
+    fn intake_synaptic_impulse(&self, impulse: f32) {
+        //TODO: Impl this
+    }
+}
+
+/// This is your standard neuron present in the
+/// encephalon.  Basically everything about this
+/// neuron isn't fixed.  It's incoming or outgoing
+/// synapses are subject to change based on its
+/// environment
+pub struct PlasticNeuron {
+    pub just_fired: bool,
+}
+
+impl RxNeuronic for PlasticNeuron {
+    fn intake_synaptic_impulse(&self, impulse: f32) {
+        //TODO: Impl this
+    }
+}
 
 
 
+//struct Synapse {
+//    strength: RefCell<f32>,
+//    weakness_threshold: f32, //If self.strength < self.w_t, then synapse dies
+//    max_impulse: f32,
+//    growth_parameter: f32, //Must be between 0 and 1
+//    decay_parameter: f32, //Must be between 0 and 1
+//    synaptic_type: SynapticType,
+//    target: Rc<Neuron>
+//}
+//
+//impl Synapse {
+//    fn new(target: Rc<Neuron>, synaptic_type: SynapticType) -> Synapse {
+//        Synapse {
+//            strength: RefCell::new(1.),
+//            weakness_threshold: 0.1,
+//            max_impulse: 11.,
+//            growth_parameter: 0.1,
+//            decay_parameter: 0.1,
+//            synaptic_type,
+//            target
+//        }
+//    }
+//
+//    fn fire(&self) {
+//        self.target.intake_synaptic_impulse(
+//            *self.strength.borrow() * (self.synaptic_type.get_synapse_modifier() as f32))
+//    }
+//}
+//
+//enum SynapticType {
+//    Excitatory,
+//    Inhibitory
+//}
+//
+//impl SynapticType {
+//    fn get_synapse_modifier(&self) -> i8 {
+//        match self {
+//            Self::Excitatory => 1,
+//            Self::Inhibitory => -1,
+//        }
+//    }
+//}
 
 
 
