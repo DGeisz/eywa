@@ -1,30 +1,33 @@
-use std::rc::Rc;
-use std::cell::RefCell;
+use super::actuator::Actuator;
 use super::neuron::SensoryNeuron;
 use sensory_encoders::Encoder;
-use super::actuator::Actuator;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// A sensory interface is an interface between
 /// an analog sensor with a defined max and min value
 /// and a sensory neuron
-struct SensoryInterface<'a> {
+pub struct SensoryInterface<'a> {
     max: f32,
     min: f32,
     current_input: Option<f32>,
     encoder: Encoder,
-    sensory_neuron: Rc<SensoryNeuron<'a>>
+    sensory_neuron: Rc<SensoryNeuron<'a>>,
 }
 
 impl SensoryInterface<'_> {
-
-    fn new(max: f32, min: f32, encoder: Encoder,
-           sensory_neuron: Rc<SensoryNeuron>) -> SensoryInterface {
+    fn new(
+        max: f32,
+        min: f32,
+        encoder: Encoder,
+        sensory_neuron: Rc<SensoryNeuron>,
+    ) -> SensoryInterface {
         SensoryInterface {
             max,
             min,
             current_input: None,
             encoder,
-            sensory_neuron
+            sensory_neuron,
         }
     }
 
@@ -34,7 +37,7 @@ impl SensoryInterface<'_> {
     fn send_input_to_neuron(&mut self, input: f32) {
         if let Some(curr_input) = self.current_input {
             if curr_input == input {
-                return
+                return;
             }
         }
 
@@ -73,7 +76,7 @@ mod sensory_encoders {
     pub enum Encoder {
         EMA(f32),
         Linear(f32),
-        Inverse
+        Inverse,
     }
 
     /// Encodes the input using an encoding strategy
@@ -81,31 +84,30 @@ mod sensory_encoders {
         match encoder {
             Encoder::EMA(alpha) => ema_encoder(input, alpha),
             Encoder::Linear(y_int) => linear_encoder(input, y_int),
-            Encoder::Inverse => inverse_encoder(input)
+            Encoder::Inverse => inverse_encoder(input),
         }
     }
 }
-
 
 /// This is the interface between an actuator neuron
 /// and the actual actuator, which takes in an analog
 /// value between min and max.  This interface essentially
 /// provides the mechanism to translate between the neuron's
 /// EMA and the actuator
-struct ActuatorInterface<'a, T: Actuator> {
+pub struct ActuatorInterface<'a> {
     max: f32,
     min: f32,
     output: RefCell<f32>,
-    actuator: &'a T
+    actuator: &'a dyn Actuator,
 }
 
-impl<'a, T: Actuator> ActuatorInterface<'a, T> {
-    pub fn new(max: f32, min: f32, actuator: &'a T) -> ActuatorInterface<'a, T> {
+impl<'a> ActuatorInterface<'a> {
+    pub fn new(max: f32, min: f32, actuator: &'a dyn Actuator) -> ActuatorInterface<'a> {
         ActuatorInterface {
             max,
             min,
             output: RefCell::new(min),
-            actuator
+            actuator,
         }
     }
 

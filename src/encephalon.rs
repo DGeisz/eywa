@@ -10,7 +10,7 @@ use std::cell::RefCell;
 /// and generally provides information about the extent to
 /// which information hath traversed the encephalon
 pub struct Encephalon {
-    cycle_count: RefCell<u64>
+    cycle_count: RefCell<u64>,
 }
 
 impl Encephalon {

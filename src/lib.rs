@@ -1,7 +1,7 @@
+mod actuator;
 mod encephalon;
 mod neuron;
 mod neuron_interfaces;
-mod actuator;
 mod sensor;
 
 pub mod eywa {

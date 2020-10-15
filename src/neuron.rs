@@ -1,9 +1,10 @@
+use super::encephalon::Encephalon;
 use std::cell::RefCell;
 use std::rc::Rc;
-use super::encephalon::Encephalon;
+use super::neuron_interfaces::ActuatorInterface;
 
 mod synapse;
-use synapse::{PlasticSynapse, Synapse};
+use synapse::{PlasticSynapse, StaticSynapse, Synapse};
 
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
@@ -22,35 +23,21 @@ pub trait TxNeuronic {
 pub enum TxNeuron<'a> {
     Sensory(Rc<SensoryNeuron<'a>>),
     Plastic(Rc<PlasticNeuron>),
-    Reflex(Rc<ReflexNeuron>)
+    Reflex(Rc<ReflexNeuron>),
 }
 
 /// Neurons that receive (hence Rx) impulses from
 /// other neurons implement the RxNeuronic trait
 pub trait RxNeuronic {
+    /// Receives an impulse from a synapse to
+    /// which it is connected
     fn intake_synaptic_impulse(&self, impulse: f32);
+
+    /// Returns true if the neuron fired on the
+    /// last cycle
+    fn just_fired(&self) -> bool;
 }
 
-/// Enum of all different neurons that implement
-/// the the trait RxNeuronic
-pub enum RxNeuron {
-    Plastic(Rc<PlasticNeuron>),
-    Actuator(Rc<ActuatorNeuron>),
-    Reflex(Rc<ReflexNeuron>)
-}
-
-impl RxNeuron {
-
-    /// Umbrella method to determine if the RxNeuron just
-    /// fired or not
-    fn did_just_fire(&self) -> bool {
-        match self {
-            Self::Plastic(neuron_ref) => (**neuron_ref).just_fired,
-            Self::Actuator(neuron_ref) => (**neuron_ref).just_fired,
-            Self::Reflex(neuron_ref) => (**neuron_ref).just_fired,
-        }
-    }
-}
 
 /// Here Fx stands for "flex" (don't confuse this with
 /// Rx or Tx, it has nothing to do with transmission, I
@@ -60,7 +47,6 @@ impl RxNeuron {
 /// Here plasticity refers to neurons whose synapses strengthen,
 /// weaken, dissolve, or appear over time
 pub trait FxNeuronic {
-
     /// Strengthens or decays plastic synapses and dissolves
     /// synapses whose strength has fallen beneath it's
     /// weakness threshold
@@ -75,7 +61,8 @@ pub trait FxNeuronic {
 pub struct SensoryNeuron<'a> {
     encephalon: &'a Encephalon,
     period: RefCell<u32>, //This is the period at which the neuron fires
-    axon_synapses: Vec<PlasticSynapse>,
+    plastic_synapses: Vec<PlasticSynapse>,
+    static_synapses: Vec<StaticSynapse>,
     pub just_fired: bool,
 }
 
@@ -99,20 +86,24 @@ impl Neuronic for SensoryNeuron<'_> {
 
 impl TxNeuronic for SensoryNeuron<'_> {
     fn fire_synapses(&self) {
-        for synapse in &self.axon_synapses {
-            synapse.fire();
+        for p_synapse in &self.plastic_synapses {
+            p_synapse.fire();
+        }
+
+        for s_synapse in &self.static_synapses {
+            s_synapse.fire();
         }
     }
 }
 
 impl FxNeuronic for SensoryNeuron<'_> {
     fn prune_synapses(&mut self) {
-        let synapses = &mut self.axon_synapses;
+        let synapses = &mut self.plastic_synapses;
         let synapses_fired = self.just_fired;
 
         synapses.retain(|synapse| {
             if synapses_fired {
-                if synapse.target.did_just_fire() {
+                if synapse.target.just_fired() {
                     synapse.strengthen();
                 } else {
                     synapse.decay();
@@ -124,21 +115,36 @@ impl FxNeuronic for SensoryNeuron<'_> {
     }
 
     fn form_synapse(&mut self) {
-
+        // TODO: Impl form synapse for neurons last
     }
 }
 
 /// A neuron that receives impulses but only
 /// sends its average frequency (calculated via EMA)
 /// to an ActuatorInterface
-pub struct ActuatorNeuron {
-   //TODO: Impl this
-   pub just_fired: bool,
+pub struct ActuatorNeuron<'a> {
+    pub just_fired: bool,
+    internal_charge: RefCell<f32>,
+    interface: &'a ActuatorInterface<'a>,
 }
 
-impl RxNeuronic for ActuatorNeuron {
-    fn intake_synaptic_impulse(&self, impulse: f32) {
-        //TODO: Impl this
+impl Neuronic for ActuatorNeuron<'_> {
+    fn run_cycle(&self) {
+
+    }
+
+    fn fire(&self) {
+
+    }
+}
+
+impl RxNeuronic for ActuatorNeuron<'_> {
+    fn intake_synaptic_impulse(&self, charge: f32) {
+        *self.internal_charge.borrow_mut() += charge;
+    }
+
+    fn just_fired(&self) -> bool {
+        self.just_fired
     }
 }
 
@@ -155,6 +161,10 @@ impl RxNeuronic for ReflexNeuron {
     fn intake_synaptic_impulse(&self, impulse: f32) {
         //TODO: Impl this
     }
+
+    fn just_fired(&self) -> bool {
+        self.just_fired
+    }
 }
 
 /// This is your standard neuron present in the
@@ -170,9 +180,10 @@ impl RxNeuronic for PlasticNeuron {
     fn intake_synaptic_impulse(&self, impulse: f32) {
         //TODO: Impl this
     }
+    fn just_fired(&self) -> bool {
+        self.just_fired
+    }
 }
-
-
 
 //struct Synapse {
 //    strength: RefCell<f32>,
@@ -216,8 +227,6 @@ impl RxNeuronic for PlasticNeuron {
 //        }
 //    }
 //}
-
-
 
 //use std::rc::Rc;
 //use std::cell::RefCell;

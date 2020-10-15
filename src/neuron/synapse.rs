@@ -1,5 +1,6 @@
 use std::cell::RefCell;
-use super::{RxNeuron, RxNeuronic};
+use std::rc::Rc;
+use super:: RxNeuronic;
 
 /// All synapses have the capability to fire
 pub trait Synapse {
@@ -17,9 +18,9 @@ pub struct PlasticSynapse {
     pub weakness_threshold: f32, //If self.strength < self.w_t, then synapse dies
     max_impulse: f32,
     growth_parameter: f32, //Must be between 0 and 1
-    decay_parameter: f32, //Must be between 0 and 1
+    decay_parameter: f32,  //Must be between 0 and 1
     synaptic_type: SynapticType,
-    pub target: RxNeuron
+    pub target: Rc<dyn RxNeuronic>
 }
 
 impl PlasticSynapse {
@@ -29,18 +30,30 @@ impl PlasticSynapse {
     }
 
     pub fn decay(&self) {
-       *self.strength.borrow_mut() *= self.decay_parameter;
+        *self.strength.borrow_mut() *= self.decay_parameter;
     }
 }
 
 impl Synapse for PlasticSynapse {
     fn fire(&self) {
         let impulse = *self.strength.borrow() * (self.synaptic_type.get_synapse_modifier() as f32);
-        match &self.target {
-            RxNeuron::Plastic(neuron_ref) => (*neuron_ref).intake_synaptic_impulse(impulse),
-            RxNeuron::Actuator(neuron_ref) => (*neuron_ref).intake_synaptic_impulse(impulse),
-            RxNeuron::Reflex(neuron_ref) => (*neuron_ref).intake_synaptic_impulse(impulse),
-        }
+        self.target.intake_synaptic_impulse(impulse);
+    }
+}
+
+/// This is a synapse that remains fixed
+/// throughout time.  It has a constant
+/// strength and a constant target
+pub struct StaticSynapse {
+    strength: f32,
+    synaptic_type: SynapticType,
+    pub target: Rc<dyn RxNeuronic>
+}
+
+impl Synapse for StaticSynapse {
+    fn fire(&self) {
+        let impulse = self.strength * (self.synaptic_type.get_synapse_modifier() as f32);
+        self.target.intake_synaptic_impulse(impulse);
     }
 }
 
@@ -50,10 +63,13 @@ impl Synapse for PlasticSynapse {
 /// to prevent the neuron from firing
 enum SynapticType {
     Excitatory,
-    Inhibitory
+    Inhibitory,
 }
 
 impl SynapticType {
+    /// Returns the integer modifier which is multiplied
+    /// by the synapse strength to produce the impulse passed
+    /// to the target neuron during synapse firing
     fn get_synapse_modifier(&self) -> i8 {
         match self {
             Self::Excitatory => 1,
