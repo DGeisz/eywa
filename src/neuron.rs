@@ -1,10 +1,10 @@
 use super::encephalon::Encephalon;
 use super::neuron_interfaces::ActuatorInterface;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::cell::{RefCell, Ref};
 
 mod synapse;
 use synapse::{PlasticSynapse, StaticSynapse, Synapse};
+use std::borrow::Borrow;
 
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
@@ -14,15 +14,19 @@ pub trait Neuronic {
 /// Neurons that transmit (hence Tx) impulses to
 /// to other neurons implement the TxNeuronic trait
 pub trait TxNeuronic {
-    fn fire_synapses(&self);
-}
+    fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>>;
 
-/// Enum of all different neurons that implement
-/// the the trait RxNeuronic
-pub enum TxNeuron<'a> {
-    Sensory(Rc<SensoryNeuron<'a>>),
-    Plastic(Rc<PlasticNeuron>),
-    Reflex(Rc<ReflexNeuron>),
+    fn get_static_synapses(&self) -> &Vec<StaticSynapse>;
+
+    fn fire_synapses(&self) {
+        for p_synapse in self.get_plastic_synapses().iter() {
+            p_synapse.fire();
+        }
+
+        for s_synapse in self.get_static_synapses() {
+            s_synapse.fire();
+        }
+    }
 }
 
 /// Neurons that receive (hence Rx) impulses from
@@ -34,7 +38,27 @@ pub trait RxNeuronic {
 
     /// Returns true if the neuron fired on the
     /// last cycle
-    fn just_fired(&self) -> bool;
+    fn fired_on_prev_cycle(&self) -> bool;
+}
+
+/// Here Fx stands for "flex" (don't confuse this with
+/// Rx or Tx, it has nothing to do with transmission, I
+/// just like the lexical symmetry).  Any neuron that displays
+/// some level of plasticity implements FxNeuronic.
+///
+/// Here plasticity refers to neurons whose synapses strengthen,
+/// weaken, dissolve, or appear over time
+pub trait FxNeuronic {
+    /// Strengthens or decays plastic synapses and dissolves
+    /// synapses whose strength has fallen beneath it's
+    /// weakness threshold
+    fn prune_synapses(&self);
+
+    /// Creates new synapse
+    fn form_synapse(&self);
+
+    /// True if neuron fired 2 cycles ago
+    fn fired_on_prev_prev(&self) -> bool;
 }
 
 /// This represents the internal charge of
@@ -55,16 +79,20 @@ impl InternalCharge {
         }
     }
 
-    fn set_charge(&mut self, cycle: ChargeCycle, charge: f32) {
+    fn reset_charge(&mut self, cycle: ChargeCycle) {
         match cycle {
-            ChargeCycle::Even => self.0 = charge,
-            ChargeCycle::Odd => self.1 = charge,
+            ChargeCycle::Even => self.0 = 0.0,
+            ChargeCycle::Odd => self.1 = 0.0,
         }
     }
 
     fn incr_next_charge(&mut self, cycle: ChargeCycle, incr_charge: f32) {
         let next_cycle = cycle.next_cycle();
-        self.set_charge(next_cycle, self.get_charge(next_cycle) + incr_charge);
+        let new_charge = self.get_charge(next_cycle) + incr_charge;
+        match next_cycle {
+            ChargeCycle::Even => self.0 = new_charge,
+            ChargeCycle::Odd => self.1 = new_charge
+        }
     }
 }
 
@@ -72,7 +100,7 @@ impl InternalCharge {
 /// Internal Charge Cycles that occur within
 /// a neuron.  Again, this is used to prevent
 /// encephalon graphical conflicts
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ChargeCycle {
     Even,
     Odd,
@@ -102,23 +130,6 @@ impl ChargeCycle {
     fn prev_prev_cycle(&self) -> ChargeCycle {
         self.clone()
     }
-}
-
-/// Here Fx stands for "flex" (don't confuse this with
-/// Rx or Tx, it has nothing to do with transmission, I
-/// just like the lexical symmetry).  Any neuron that displays
-/// some level of plasticity implements FxNeuronic.
-///
-/// Here plasticity refers to neurons whose synapses strengthen,
-/// weaken, dissolve, or appear over time
-pub trait FxNeuronic {
-    /// Strengthens or decays plastic synapses and dissolves
-    /// synapses whose strength has fallen beneath it's
-    /// weakness threshold
-    fn prune_synapses(&mut self);
-
-    /// Creates new synapse
-    fn form_synapse(&mut self);
 }
 
 /// Tracks if neurons fired at particular cycles
@@ -154,7 +165,7 @@ impl FireTracker {
         self.last_recorded_current_cycle = cycle;
         self.prev_prev = match cycle {
             ChargeCycle::Even => self.values.0,
-            ChargeCycle::Odd => self.values.1
+            ChargeCycle::Odd => self.values.1,
         };
 
         match cycle {
@@ -169,12 +180,12 @@ impl FireTracker {
 pub struct SensoryNeuron<'a> {
     encephalon: &'a Encephalon,
     period: RefCell<u32>, //This is the period at which the neuron fires
-    plastic_synapses: Vec<PlasticSynapse>,
+    plastic_synapses: RefCell<Vec<PlasticSynapse>>,
     static_synapses: Vec<StaticSynapse>,
-    pub just_fired: bool,
+    fire_tracker: RefCell<FireTracker>,
 }
 
-impl<'a> SensoryNeuron<'a> {
+impl SensoryNeuron<'_> {
     pub fn set_period(&self, period: u32) {
         *self.period.borrow_mut() = period;
     }
@@ -182,32 +193,39 @@ impl<'a> SensoryNeuron<'a> {
 
 impl Neuronic for SensoryNeuron<'_> {
     fn run_cycle(&self) {
+        let mut fire_tracker = self.fire_tracker.borrow_mut();
+        let current_cycle = self.encephalon.get_charge_cycle();
+
+        self.prune_synapses();
+        self.form_synapse();
+
         if self.encephalon.get_cycle_count() % *self.period.borrow() == 0 {
             self.fire_synapses();
+            fire_tracker.set_tracker(current_cycle, true);
+        } else {
+            fire_tracker.set_tracker(current_cycle, false);
         }
     }
 }
 
 impl TxNeuronic for SensoryNeuron<'_> {
-    fn fire_synapses(&self) {
-        for p_synapse in &self.plastic_synapses {
-            p_synapse.fire();
-        }
+    fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>> {
+        self.plastic_synapses.borrow()
+    }
 
-        for s_synapse in &self.static_synapses {
-            s_synapse.fire();
-        }
+    fn get_static_synapses(&self) -> &Vec<StaticSynapse> {
+        &self.static_synapses
     }
 }
 
 impl FxNeuronic for SensoryNeuron<'_> {
-    fn prune_synapses(&mut self) {
-        let synapses = &mut self.plastic_synapses;
-        let synapses_fired = self.just_fired;
+    fn prune_synapses(&self) {
+        let synapses_fired = self.fired_on_prev_prev();
+        let mut synapses = self.plastic_synapses.borrow_mut();
 
         synapses.retain(|synapse| {
             if synapses_fired {
-                if synapse.target.just_fired() {
+                if synapse.target.fired_on_prev_cycle() {
                     synapse.strengthen();
                 } else {
                     synapse.decay();
@@ -218,8 +236,14 @@ impl FxNeuronic for SensoryNeuron<'_> {
         })
     }
 
-    fn form_synapse(&mut self) {
+    fn form_synapse(&self) {
         // TODO: Impl form synapse for neurons last
+    }
+
+    fn fired_on_prev_prev(&self) -> bool {
+        self.fire_tracker
+            .borrow()
+            .fired_on_prev_prev(self.encephalon.get_charge_cycle())
     }
 }
 
@@ -228,26 +252,46 @@ impl FxNeuronic for SensoryNeuron<'_> {
 /// to an ActuatorInterface
 pub struct ActuatorNeuron<'a> {
     encephalon: &'a Encephalon,
-    pub just_fired: bool,
+    fire_tracker: RefCell<FireTracker>,
     internal_charge: RefCell<InternalCharge>,
+    fire_threshold: f32,
     interface: &'a ActuatorInterface<'a>,
     ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
     alpha: f32,        //The constant of the exponential moving average
 }
 
 impl Neuronic for ActuatorNeuron<'_> {
-    fn run_cycle(&self) {}
+    fn run_cycle(&self) {
+        let current_cycle = self.encephalon.get_charge_cycle();
+        let mut internal_charge = self.internal_charge.borrow_mut();
+        let mut ema = self.ema.borrow_mut();
+        let mut fire_tracker = self.fire_tracker.borrow_mut();
+
+        if internal_charge.get_charge(current_cycle) > self.fire_threshold {
+            *ema = self.alpha + ((1.0 - self.alpha) * (*ema));
+            fire_tracker.set_tracker(current_cycle, true);
+        } else {
+            *ema = (1.0 - self.alpha) * (*ema);
+            fire_tracker.set_tracker(current_cycle, false);
+        }
+
+        internal_charge.reset_charge(current_cycle);
+
+        self.interface.set_output_from_freq(*ema);
+    }
 }
 
 impl RxNeuronic for ActuatorNeuron<'_> {
-    fn intake_synaptic_impulse(&self, charge: f32) {
+    fn intake_synaptic_impulse(&self, impulse: f32) {
         self.internal_charge
             .borrow_mut()
-            .incr_next_charge(self.encephalon.get_charge_cycle(), charge);
+            .incr_next_charge(self.encephalon.get_charge_cycle(), impulse);
     }
 
-    fn just_fired(&self) -> bool {
-        self.just_fired
+    fn fired_on_prev_cycle(&self) -> bool {
+        self.fire_tracker
+            .borrow()
+            .fired_on_prev_cycle(self.encephalon.get_charge_cycle())
     }
 }
 
@@ -256,16 +300,85 @@ impl RxNeuronic for ActuatorNeuron<'_> {
 /// neuron isn't fixed.  It's incoming or outgoing
 /// synapses are subject to change based on its
 /// environment
-pub struct PlasticNeuron {
-    pub just_fired: bool,
+pub struct PlasticNeuron<'a> {
+    encephalon: &'a Encephalon,
+    internal_charge: RefCell<InternalCharge>,
+    fire_threshold: f32,
+    fire_tracker: RefCell<FireTracker>,
+    plastic_synapses: RefCell<Vec<PlasticSynapse>>,
+    static_synapses: Vec<StaticSynapse>,
 }
 
-impl RxNeuronic for PlasticNeuron {
-    fn intake_synaptic_impulse(&self, impulse: f32) {
-        //TODO: Impl this
+impl<'a> Neuronic for PlasticNeuron<'a> {
+    fn run_cycle(&self) {
+        let current_cycle = self.encephalon.get_charge_cycle();
+        let mut internal_charge = self.internal_charge.borrow_mut();
+        let mut fire_tracker = self.fire_tracker.borrow_mut();
+
+        self.prune_synapses();
+        self.form_synapse();
+
+        if internal_charge.get_charge(current_cycle) > self.fire_threshold {
+            self.fire_synapses();
+            fire_tracker.set_tracker(current_cycle, true);
+        } else {
+            fire_tracker.set_tracker(current_cycle, false);
+        }
+
+        internal_charge.reset_charge(current_cycle);
     }
-    fn just_fired(&self) -> bool {
-        self.just_fired
+}
+
+impl RxNeuronic for PlasticNeuron<'_> {
+    fn intake_synaptic_impulse(&self, impulse: f32) {
+        self.internal_charge
+            .borrow_mut()
+            .incr_next_charge(self.encephalon.get_charge_cycle(), impulse);
+    }
+
+    fn fired_on_prev_cycle(&self) -> bool {
+        self.fire_tracker
+            .borrow()
+            .fired_on_prev_cycle(self.encephalon.get_charge_cycle())
+    }
+}
+
+impl TxNeuronic for PlasticNeuron<'_> {
+    fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>> {
+        self.plastic_synapses.borrow()
+    }
+
+    fn get_static_synapses(&self) -> &Vec<StaticSynapse> {
+        &self.static_synapses
+    }
+}
+
+impl FxNeuronic for PlasticNeuron<'_> {
+    fn prune_synapses(&self) {
+        let synapses_fired = self.fired_on_prev_prev();
+        let mut synapses = self.plastic_synapses.borrow_mut();
+
+        synapses.retain(|synapse| {
+            if synapses_fired {
+                if synapse.target.fired_on_prev_cycle() {
+                    synapse.strengthen();
+                } else {
+                    synapse.decay();
+                }
+            }
+            let strength = synapse.strength.borrow();
+            *strength > synapse.weakness_threshold
+        })
+    }
+
+    fn form_synapse(&self) {
+        // TODO: Impl form synapse for neurons last
+    }
+
+    fn fired_on_prev_prev(&self) -> bool {
+        self.fire_tracker
+            .borrow()
+            .fired_on_prev_prev(self.encephalon.get_charge_cycle())
     }
 }
 
@@ -276,16 +389,6 @@ pub struct ReflexNeuron {
     //TODO: Determine if I even need this in the face of
     // Static synapses, and impl if so
     pub just_fired: bool,
-}
-
-impl RxNeuronic for ReflexNeuron {
-    fn intake_synaptic_impulse(&self, impulse: f32) {
-        //TODO: Impl this
-    }
-
-    fn just_fired(&self) -> bool {
-        self.just_fired
-    }
 }
 
 //struct Synapse {
