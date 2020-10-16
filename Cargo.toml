@@ -1,7 +1,7 @@
 [package]
 name = "eywa"
 version = "0.1.0"
-authors = ["Danny Student <dannygeisz@berkeley.edu>"]
+authors = ["Danny Geisz <dannygeisz@berkeley.edu>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 uuid = { version = "0.8.1", features = ["v4"] }
 rand = "0.7.3"
+fastapprox = "0.3.0"

@@ -55,7 +55,7 @@ pub trait FxNeuronic {
 
     /// Creates new synapse with another (rx) neuron
     /// within this neurons vicinity
-    fn form_synapse(&self);
+    fn form_plastic_synapse(&self);
 
     /// True if neuron fired 2 cycles ago
     fn fired_on_prev_prev(&self) -> bool;
@@ -197,7 +197,7 @@ impl Neuronic for SensoryNeuron<'_> {
         let current_cycle = self.encephalon.get_charge_cycle();
 
         self.prune_synapses();
-        self.form_synapse();
+        self.form_plastic_synapse();
 
         if self.encephalon.get_cycle_count() % *self.period.borrow() == 0 {
             self.fire_synapses();
@@ -231,13 +231,12 @@ impl FxNeuronic for SensoryNeuron<'_> {
                     synapse.decay();
                 }
             }
-            let strength = synapse.strength.borrow();
-            *strength > synapse.weakness_threshold
+            synapse.connected()
         })
     }
 
-    fn form_synapse(&self) {
-        // TODO: Impl form synapse for neurons last
+    fn form_plastic_synapse(&self) {
+        //TODO: Impl after impling new method of synapse
     }
 
     fn fired_on_prev_prev(&self) -> bool {
@@ -316,7 +315,7 @@ impl<'a> Neuronic for PlasticNeuron<'a> {
         let mut fire_tracker = self.fire_tracker.borrow_mut();
 
         self.prune_synapses();
-        self.form_synapse();
+        self.form_plastic_synapse();
 
         if internal_charge.get_charge(current_cycle) > self.fire_threshold {
             self.fire_synapses();
@@ -366,12 +365,11 @@ impl FxNeuronic for PlasticNeuron<'_> {
                     synapse.decay();
                 }
             }
-            let strength = synapse.strength.borrow();
-            *strength > synapse.weakness_threshold
+            synapse.connected()
         })
     }
 
-    fn form_synapse(&self) {
+    fn form_plastic_synapse(&self) {
         // TODO: Impl form synapse for neurons last
     }
 

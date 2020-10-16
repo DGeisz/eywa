@@ -11,10 +11,9 @@ pub trait EcpGeometry {
     /// structure may have a fewer number of neurons than specified in the
     /// arguments.  "Nearby count" is the number of neurons with which FxNeurons
     /// may form synapses
-    fn new(num_plastic: u32,
-           num_sensor: u32,
-           num_actuator: u32,
-           nearby_count: u32) -> Self where Self: Sized;
+    fn new(num_plastic: u32, num_sensor: u32, num_actuator: u32, nearby_count: u32) -> Self
+    where
+        Self: Sized;
 
     /// Here "loc" is short for "location," which is represented
     /// by a vector of integers. These methods either return the
