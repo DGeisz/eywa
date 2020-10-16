@@ -42,7 +42,7 @@ impl Encephalon {
 
     /// Finds a random neuron within the vicinity of loc
     /// which allows neurons to make new random connections
-    pub fn local_random_neuron(&self, loc: Vec<i32>) -> Option<Rc<dyn RxNeuronic>> {
+    pub fn local_random_neuron(&self, loc: &Vec<i32>) -> Option<Rc<dyn RxNeuronic>> {
         let hash_option = self.ecp_geometry.local_random_hash(loc);
 
         if let Some(hash) = hash_option {

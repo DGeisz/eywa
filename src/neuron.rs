@@ -4,6 +4,8 @@ use std::cell::{Ref, RefCell};
 
 mod synapse;
 use synapse::{PlasticSynapse, StaticSynapse, Synapse};
+use crate::neuron::synapse::synaptic_strength::SynapticStrength;
+use crate::neuron::synapse::SynapticType;
 
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
@@ -183,6 +185,11 @@ pub struct SensoryNeuron<'a> {
     plastic_synapses: RefCell<Vec<PlasticSynapse>>,
     static_synapses: Vec<StaticSynapse>,
     fire_tracker: RefCell<FireTracker>,
+    synaptic_strength_generator: Box<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
+    synapse_type_threshold: f32,
+    ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
+    alpha: f32,        //The constant of the exponential moving average
+    loc: Vec<i32>,
 }
 
 impl SensoryNeuron<'_> {
@@ -199,10 +206,14 @@ impl Neuronic for SensoryNeuron<'_> {
         self.prune_synapses();
         self.form_plastic_synapse();
 
+        let mut ema = self.ema.borrow_mut();
+
         if self.encephalon.get_cycle_count() % *self.period.borrow() == 0 {
             self.fire_synapses();
+            *ema = self.alpha + ((1.0 - self.alpha) * (*ema));
             fire_tracker.set_tracker(current_cycle, true);
         } else {
+            *ema = (1.0 - self.alpha) * (*ema);
             fire_tracker.set_tracker(current_cycle, false);
         }
     }
@@ -236,7 +247,24 @@ impl FxNeuronic for SensoryNeuron<'_> {
     }
 
     fn form_plastic_synapse(&self) {
-        //TODO: Impl after impling new method of synapse
+        let new_target_neuron = self.encephalon.local_random_neuron(&self.loc);
+
+        let synapse_type = match *self.ema.borrow() < self.synapse_type_threshold {
+            true => SynapticType::Excitatory,
+            false => SynapticType::Inhibitory
+        };
+
+        if let Some(neuron_ref) = new_target_neuron {
+            let new_synapse = PlasticSynapse::new(
+                (self.synaptic_strength_generator)(),
+                synapse_type,
+                neuron_ref
+            );
+
+            self.plastic_synapses
+                .borrow_mut()
+                .push(new_synapse);
+        }
     }
 
     fn fired_on_prev_prev(&self) -> bool {
@@ -257,6 +285,7 @@ pub struct ActuatorNeuron<'a> {
     interface: &'a ActuatorInterface<'a>,
     ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
     alpha: f32,        //The constant of the exponential moving average
+    loc: Vec<i32>,
 }
 
 impl Neuronic for ActuatorNeuron<'_> {
@@ -306,6 +335,11 @@ pub struct PlasticNeuron<'a> {
     fire_tracker: RefCell<FireTracker>,
     plastic_synapses: RefCell<Vec<PlasticSynapse>>,
     static_synapses: Vec<StaticSynapse>,
+    synaptic_strength_generator: Box<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
+    synapse_type_threshold: f32,
+    ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
+    alpha: f32,        //The constant of the exponential moving average
+    loc: Vec<i32>,
 }
 
 impl<'a> Neuronic for PlasticNeuron<'a> {
@@ -317,10 +351,14 @@ impl<'a> Neuronic for PlasticNeuron<'a> {
         self.prune_synapses();
         self.form_plastic_synapse();
 
+        let mut ema = self.ema.borrow_mut();
+
         if internal_charge.get_charge(current_cycle) > self.fire_threshold {
             self.fire_synapses();
+            *ema = self.alpha + ((1.0 - self.alpha) * (*ema));
             fire_tracker.set_tracker(current_cycle, true);
         } else {
+            *ema = (1.0 - self.alpha) * (*ema);
             fire_tracker.set_tracker(current_cycle, false);
         }
 
@@ -370,7 +408,24 @@ impl FxNeuronic for PlasticNeuron<'_> {
     }
 
     fn form_plastic_synapse(&self) {
-        // TODO: Impl form synapse for neurons last
+        let new_target_neuron = self.encephalon.local_random_neuron(&self.loc);
+
+        let synapse_type = match *self.ema.borrow() < self.synapse_type_threshold {
+            true => SynapticType::Excitatory,
+            false => SynapticType::Inhibitory
+        };
+
+        if let Some(neuron_ref) = new_target_neuron {
+            let new_synapse = PlasticSynapse::new(
+                (self.synaptic_strength_generator)(),
+                synapse_type,
+                neuron_ref
+            );
+
+            self.plastic_synapses
+                .borrow_mut()
+                .push(new_synapse);
+        }
     }
 
     fn fired_on_prev_prev(&self) -> bool {

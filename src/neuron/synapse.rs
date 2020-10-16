@@ -14,8 +14,6 @@ pub trait Synapse {
 /// ways, and the synaptic_strength module provides a toolbox
 /// of different methods or curves used for synaptic strength
 pub mod synaptic_strength {
-    use fastapprox::faster;
-
     pub trait SynapticStrength {
         /// Simply return the strength of the synapse
         fn get_strength(&self) -> f32;
@@ -68,7 +66,7 @@ pub mod synaptic_strength {
 
     impl SynapticStrength for SigmoidStrength {
         fn get_strength(&self) -> f32 {
-            self.max_value * faster::sigmoid(self.x_value)
+            self.max_value / (1.0 + (-1. * self.x_value).exp())
         }
 
         fn strengthen(&mut self) {

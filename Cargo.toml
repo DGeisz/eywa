@@ -9,4 +9,3 @@ edition = "2018"
 [dependencies]
 uuid = { version = "0.8.1", features = ["v4"] }
 rand = "0.7.3"
-fastapprox = "0.3.0"

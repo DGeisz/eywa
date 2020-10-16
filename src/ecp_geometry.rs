@@ -35,5 +35,5 @@ pub trait EcpGeometry {
     /// Returns a random location with the set of locations that
     /// are considered "nearby" loc.  This is crucial to plasticity
     /// and synapse formation
-    fn local_random_hash(&self, loc: Vec<i32>) -> Option<String>;
+    fn local_random_hash(&self, loc: &Vec<i32>) -> Option<String>;
 }
