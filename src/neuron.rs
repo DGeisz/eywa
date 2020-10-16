@@ -1,10 +1,9 @@
 use super::encephalon::Encephalon;
 use super::neuron_interfaces::ActuatorInterface;
-use std::cell::{RefCell, Ref};
+use std::cell::{Ref, RefCell};
 
 mod synapse;
 use synapse::{PlasticSynapse, StaticSynapse, Synapse};
-use std::borrow::Borrow;
 
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
@@ -54,7 +53,8 @@ pub trait FxNeuronic {
     /// weakness threshold
     fn prune_synapses(&self);
 
-    /// Creates new synapse
+    /// Creates new synapse with another (rx) neuron
+    /// within this neurons vicinity
     fn form_synapse(&self);
 
     /// True if neuron fired 2 cycles ago
@@ -91,7 +91,7 @@ impl InternalCharge {
         let new_charge = self.get_charge(next_cycle) + incr_charge;
         match next_cycle {
             ChargeCycle::Even => self.0 = new_charge,
-            ChargeCycle::Odd => self.1 = new_charge
+            ChargeCycle::Odd => self.1 = new_charge,
         }
     }
 }

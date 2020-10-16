@@ -1,4 +1,5 @@
 mod actuator;
+mod ecp_geometry;
 mod encephalon;
 mod neuron;
 mod neuron_interfaces;
