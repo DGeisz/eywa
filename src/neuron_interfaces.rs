@@ -3,19 +3,20 @@ use super::neuron::SensoryNeuron;
 use sensory_encoders::Encoder;
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::neuron::ActuatorNeuron;
 
 /// A sensory interface is an interface between
 /// an analog sensor with a defined max and min value
 /// and a sensory neuron
-pub struct SensoryInterface<'a> {
+pub struct SensoryInterface {
     max: f32,
     min: f32,
     current_input: Option<f32>,
     encoder: Encoder,
-    sensory_neuron: Rc<SensoryNeuron<'a>>,
+    sensory_neuron: Rc<SensoryNeuron>,
 }
 
-impl SensoryInterface<'_> {
+impl SensoryInterface {
     fn new(
         max: f32,
         min: f32,
@@ -94,19 +95,26 @@ mod sensory_encoders {
 /// value between min and max.  This interface essentially
 /// provides the mechanism to translate between the neuron's
 /// EMA and the actuator
-pub struct ActuatorInterface<'a> {
+pub struct ActuatorInterface {
     max: f32,
     min: f32,
     output: RefCell<f32>,
-    actuator: &'a dyn Actuator,
+    actuator_neuron: Rc<ActuatorNeuron>,
+    actuator: Box<dyn Actuator>,
 }
 
-impl<'a> ActuatorInterface<'a> {
-    pub fn new(max: f32, min: f32, actuator: &'a dyn Actuator) -> ActuatorInterface<'a> {
+impl ActuatorInterface {
+    pub fn new(
+        max: f32,
+        min: f32,
+        actuator_neuron: Rc<ActuatorNeuron>,
+        actuator: Box<dyn Actuator>
+    ) -> ActuatorInterface {
         ActuatorInterface {
             max,
             min,
             output: RefCell::new(min),
+            actuator_neuron,
             actuator,
         }
     }
