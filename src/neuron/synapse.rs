@@ -1,8 +1,9 @@
-use super::RxNeuronic;
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
 use synaptic_strength::SynapticStrength;
+
+use crate::neuron::NeuronicRx;
 
 /// All synapses have the capability to fire
 pub trait Synapse {
@@ -148,6 +149,7 @@ pub mod synaptic_strength {
 /// neuron's internal charge, inhibitory synapses
 /// decrease their target neuron's internal charge
 /// to prevent the neuron from firing
+#[derive(Copy, Clone)]
 pub enum SynapticType {
     Excitatory,
     Inhibitory,
@@ -174,14 +176,14 @@ impl SynapticType {
 pub struct PlasticSynapse {
     strength: Box<RefCell<dyn SynapticStrength>>,
     synaptic_type: SynapticType,
-    pub target: Rc<dyn RxNeuronic>,
+    pub target: Rc<dyn NeuronicRx>,
 }
 
 impl PlasticSynapse {
     pub fn new(
         strength: Box<RefCell<dyn SynapticStrength>>,
         synaptic_type: SynapticType,
-        target: Rc<dyn RxNeuronic>,
+        target: Rc<dyn NeuronicRx>,
     ) -> PlasticSynapse {
         PlasticSynapse {
             strength,
@@ -227,7 +229,21 @@ impl Synapse for PlasticSynapse {
 pub struct StaticSynapse {
     strength: f32,
     synaptic_type: SynapticType,
-    pub target: Rc<dyn RxNeuronic>,
+    target: Rc<dyn NeuronicRx>
+}
+
+impl StaticSynapse {
+    pub fn new(
+        strength: f32,
+        synaptic_type: SynapticType,
+        target: Rc<dyn NeuronicRx>,
+    ) -> StaticSynapse {
+        StaticSynapse {
+            strength,
+            synaptic_type,
+            target,
+        }
+    }
 }
 
 impl Synapse for StaticSynapse {

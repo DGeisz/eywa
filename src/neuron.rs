@@ -15,10 +15,7 @@ pub trait Neuronic {
 /// Neurons that transmit (hence Tx) impulses to
 /// to other neurons implement the TxNeuronic trait
 pub trait TxNeuronic {
-    fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>>;
-
-    fn get_static_synapses(&self) -> Ref<Vec<StaticSynapse>>;
-
+    /// Fire all neuron synapses
     fn fire_synapses(&self) {
         for p_synapse in self.get_plastic_synapses().iter() {
             p_synapse.fire();
@@ -28,6 +25,18 @@ pub trait TxNeuronic {
             s_synapse.fire();
         }
     }
+
+    /// Add a static synapse with "target" synapse
+    /// Typically called at the inception of the encephalon
+    fn add_static_synapse(
+        &self,
+        strength: f32,
+        synaptic_type: SynapticType,
+        target_neuron: Rc<dyn NeuronicRx>,
+    );
+
+    fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>>;
+    fn get_static_synapses(&self) -> Ref<Vec<StaticSynapse>>;
 }
 
 /// Neurons that receive (hence Rx) impulses from
@@ -47,6 +56,10 @@ pub enum RxNeuron {
     Actuator,
     Plastic,
 }
+
+/// Trait used for to reference the fact that a neuron
+/// implements both RxNeuronic and Neuronic
+pub trait NeuronicRx: RxNeuronic + Neuronic {}
 
 /// Here Fx stands for "flex" (don't confuse this with
 /// Rx or Tx, it has nothing to do with transmission, I
@@ -212,6 +225,32 @@ pub struct SensoryNeuron {
 }
 
 impl SensoryNeuron {
+    pub fn new(
+        encephalon: Rc<Encephalon>,
+        max_plastic_synapses: usize,
+        synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
+        synapse_type_threshold: f32,
+        alpha: f32, //The constant of the exponential moving average
+        loc: Vec<i32>,
+    ) -> SensoryNeuron {
+        SensoryNeuron {
+            encephalon,
+            period: RefCell::new(0),
+            max_plastic_synapses,
+            plastic_synapses: RefCell::new(Vec::new()),
+            static_synapses: RefCell::new(Vec::new()),
+            fire_tracker: RefCell::new(FireTracker::new()),
+            synaptic_strength_generator,
+            synapse_type_threshold,
+            ema: RefCell::new(0.0),
+            alpha,
+            loc,
+        }
+    }
+
+    /// Sets the period of this neuron, which
+    /// indicates on which cycle values this neuron
+    /// should fire
     pub fn set_period(&self, period: u32) {
         *self.period.borrow_mut() = period;
     }
@@ -227,7 +266,9 @@ impl Neuronic for SensoryNeuron {
 
         let mut ema = self.ema.borrow_mut();
 
-        if self.encephalon.get_cycle_count() % *self.period.borrow() == 0 {
+        let period = self.period.borrow();
+
+        if *period != 0 && self.encephalon.get_cycle_count() % *period == 0 {
             self.fire_synapses();
             *ema = self.alpha + ((1.0 - self.alpha) * (*ema));
             fire_tracker.set_tracker(current_cycle, true);
@@ -239,6 +280,19 @@ impl Neuronic for SensoryNeuron {
 }
 
 impl TxNeuronic for SensoryNeuron {
+    fn add_static_synapse(
+        &self,
+        strength: f32,
+        synaptic_type: SynapticType,
+        target_neuron: Rc<dyn NeuronicRx>,
+    ) {
+        self.static_synapses.borrow_mut().push(StaticSynapse::new(
+            strength,
+            synaptic_type,
+            target_neuron,
+        ));
+    }
+
     fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>> {
         self.plastic_synapses.borrow()
     }
@@ -364,6 +418,8 @@ impl RxNeuronic for ActuatorNeuron {
     }
 }
 
+impl NeuronicRx for ActuatorNeuron {}
+
 /// This is your standard neuron present in the
 /// encephalon.  Basically everything about this
 /// neuron isn't fixed.  It's incoming or outgoing
@@ -377,7 +433,7 @@ pub struct PlasticNeuron {
     max_plastic_synapses: usize,
     plastic_synapses: RefCell<Vec<PlasticSynapse>>,
     static_synapses: RefCell<Vec<StaticSynapse>>,
-    synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,//Box<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
+    synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>, //Box<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
     synapse_type_threshold: f32,
     ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
     alpha: f32,        //The constant of the exponential moving average
@@ -391,7 +447,7 @@ impl PlasticNeuron {
         max_plastic_synapses: usize,
         synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
         synapse_type_threshold: f32,
-        alpha: f32,        //The constant of the exponential moving average
+        alpha: f32, //The constant of the exponential moving average
         loc: Vec<i32>,
     ) -> PlasticNeuron {
         PlasticNeuron {
@@ -406,7 +462,7 @@ impl PlasticNeuron {
             synapse_type_threshold,
             ema: RefCell::new(0.0),
             alpha,
-            loc
+            loc,
         }
     }
 }
@@ -449,7 +505,22 @@ impl RxNeuronic for PlasticNeuron {
     }
 }
 
+impl NeuronicRx for PlasticNeuron {}
+
 impl TxNeuronic for PlasticNeuron {
+    fn add_static_synapse(
+        &self,
+        strength: f32,
+        synaptic_type: SynapticType,
+        target_neuron: Rc<dyn NeuronicRx>,
+    ) {
+        self.static_synapses.borrow_mut().push(StaticSynapse::new(
+            strength,
+            synaptic_type,
+            target_neuron,
+        ));
+    }
+
     fn get_plastic_synapses(&self) -> Ref<Vec<PlasticSynapse>> {
         self.plastic_synapses.borrow()
     }

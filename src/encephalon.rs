@@ -5,10 +5,21 @@ use std::rc::Rc;
 
 use crate::actuator::Actuator;
 use crate::ecp_geometry::EcpGeometry;
-use crate::neuron::{ActuatorNeuron, ChargeCycle, Neuronic, RxNeuron, RxNeuronic, PlasticNeuron};
 use crate::neuron::synapse::synaptic_strength::SynapticStrength;
+use crate::neuron::synapse::SynapticType;
+use crate::neuron::{ActuatorNeuron, ChargeCycle, PlasticNeuron, RxNeuron, SensoryNeuron, TxNeuronic, Neuronic, NeuronicRx};
 use crate::neuron_interfaces::{ActuatorInterface, SensoryInterface};
 use crate::sensor::Sensor;
+
+/// This is a high level description of a reflex.
+/// A reflex is a static synapse between a sensor
+/// and actuator neuron of a fixed strength
+pub struct Reflex {
+    pub sensor_name: String,
+    pub actuator_name: String,
+    pub synapse_type: SynapticType,
+    pub strength: f32,
+}
 
 /// This is the brains of the operation (lol).
 /// But, for real, this is contains a cluster of
@@ -22,25 +33,32 @@ use crate::sensor::Sensor;
 pub struct Encephalon {
     cycle_count: RefCell<u64>,
     ecp_geometry: Box<dyn EcpGeometry>,
-    rx_neurons: RefCell<HashMap<String, Rc<dyn RxNeuronic>>>,
-    sensor_neurons: RefCell<HashMap<String, Rc<dyn Neuronic>>>,
+    rx_neurons: RefCell<HashMap<String, Rc<dyn NeuronicRx>>>,
+    sensory_neurons: RefCell<HashMap<String, Rc<SensoryNeuron>>>,
     actuator_interfaces: RefCell<HashMap<String, ActuatorInterface>>,
     sensory_interfaces: RefCell<HashMap<String, SensoryInterface>>,
+    reflexes: Vec<Reflex>,
 }
 
 impl Encephalon {
-    /// Creates a new encephalon
+    /// Creates a new encephalon.
     pub fn new(
         ecp_geometry: Box<dyn EcpGeometry>,
-        sensors: Vec<Rc<dyn Sensor>>,
-        actuators: Vec<Rc<dyn Actuator>>,
+        mut sensors: Vec<Rc<dyn Sensor>>,
+        mut actuators: Vec<Rc<dyn Actuator>>,
 
         //Parameters for neurons
         fire_threshold: f32,
         ema_alpha: f32,
         synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
         synapse_type_threshold: f32,
-        max_plastic_synapses: usize
+        max_plastic_synapses: usize,
+
+        //Parameters for interfaces
+        sensory_encoder: fn(f32) -> u32,
+
+        //List of reflex synapses
+        reflexes: Vec<Reflex>,
     ) -> Rc<Encephalon> {
         if ecp_geometry.get_num_sensor() != sensors.len() as u32 {
             panic!(
@@ -58,14 +76,13 @@ impl Encephalon {
             cycle_count: RefCell::new(0),
             ecp_geometry,
             rx_neurons: RefCell::new(HashMap::new()),
-            sensor_neurons: RefCell::new(HashMap::new()),
+            sensory_neurons: RefCell::new(HashMap::new()),
             actuator_interfaces: RefCell::new(HashMap::new()),
             sensory_interfaces: RefCell::new(HashMap::new()),
+            reflexes,
         });
 
-        let mut actuator_count = 0;
-
-        // let (mut loc, mut hash, mut neuron_type) = new_encephalon.ecp_geometry.first_rx_loc();
+        // Populate the encephalon's Rx neurons
         let mut ecp_rx_option = Some(new_encephalon.ecp_geometry.first_rx_loc());
 
         loop {
@@ -81,37 +98,36 @@ impl Encephalon {
 
                         let new_rx_neuron = Rc::clone(&new_neuron);
 
-                        new_encephalon
-                            .rx_neurons
-                            .borrow_mut()
-                            .insert(hash.clone(), Rc::clone(&(new_rx_neuron as Rc<dyn RxNeuronic>)));
+                        new_encephalon.rx_neurons.borrow_mut().insert(
+                            hash.clone(),
+                            Rc::clone(&(new_rx_neuron as Rc<dyn NeuronicRx>)),
+                        );
 
-                        let curr_actuator_option = actuators.get(actuator_count);
+                        let curr_actuator_option = actuators.pop();
 
                         if let Some(curr_actuator) = curr_actuator_option {
                             new_encephalon.actuator_interfaces.borrow_mut().insert(
                                 curr_actuator.get_name(),
-                                ActuatorInterface::new(Rc::clone(&new_neuron), Rc::clone(&curr_actuator)),
+                                ActuatorInterface::new(
+                                    Rc::clone(&new_neuron),
+                                    Rc::clone(&curr_actuator),
+                                ),
                             );
                         }
-
-                        actuator_count += 1;
                     }
                     RxNeuron::Plastic => {
-                        new_encephalon
-                            .rx_neurons
-                            .borrow_mut()
-                            .insert(
-                                hash.clone(),
-                                Rc::new(PlasticNeuron::new(
-                                    Rc::clone(&new_encephalon),
-                                    fire_threshold,
-                                    max_plastic_synapses,
-                                    synaptic_strength_generator,
-                                    synapse_type_threshold,
-                                    ema_alpha,
-                                    loc.clone(),
-                                )));
+                        new_encephalon.rx_neurons.borrow_mut().insert(
+                            hash.clone(),
+                            Rc::new(PlasticNeuron::new(
+                                Rc::clone(&new_encephalon),
+                                fire_threshold,
+                                max_plastic_synapses,
+                                synaptic_strength_generator,
+                                synapse_type_threshold,
+                                ema_alpha,
+                                loc.clone(),
+                            )),
+                        );
                     }
                 };
 
@@ -121,7 +137,95 @@ impl Encephalon {
             }
         }
 
+        // Populate the encephalon's sensory_neurons
+        let mut ecp_sensory_option = Some(new_encephalon.ecp_geometry.first_sensory_loc());
+
+        loop {
+            if let Some((loc, hash)) = &ecp_sensory_option {
+                let new_neuron = Rc::new(SensoryNeuron::new(
+                    Rc::clone(&new_encephalon),
+                    max_plastic_synapses,
+                    synaptic_strength_generator,
+                    synapse_type_threshold,
+                    ema_alpha,
+                    loc.clone(),
+                ));
+
+                new_encephalon
+                    .sensory_neurons
+                    .borrow_mut()
+                    .insert(hash.clone(), Rc::clone(&new_neuron));
+
+                let curr_sensor_option = sensors.pop();
+
+                if let Some(curr_sensor) = curr_sensor_option {
+                    new_encephalon.sensory_interfaces.borrow_mut().insert(
+                        curr_sensor.get_name(),
+                        SensoryInterface::new(
+                            Rc::clone(&curr_sensor),
+                            sensory_encoder,
+                            Rc::clone(&new_neuron),
+                        ),
+                    );
+                }
+
+                ecp_sensory_option = new_encephalon.ecp_geometry.next_sensory_loc(loc.clone());
+            } else {
+                break;
+            }
+        }
+
+        new_encephalon.form_reflex_synapses();
+
         new_encephalon
+    }
+
+    /// Runs one full cycle of the encephalon
+    pub fn run_cycle(&self) {
+        self.uptick_cycle_count();
+
+        // Cycle sensory interfaces
+        for sensory_interface in self.sensory_interfaces.borrow().values() {
+            sensory_interface.run_cycle();
+        }
+
+        // Cycle actuator interfaces
+        for actuator_interface in self.actuator_interfaces.borrow().values() {
+            actuator_interface.run_cycle();
+        }
+
+        // Cycle sensory neurons
+        for sensory_neuron in self.sensory_neurons.borrow().values() {
+            sensory_neuron.run_cycle();
+        }
+
+        // Cycle rx neurons
+        for rx_neuron in self.rx_neurons.borrow().values() {
+            rx_neuron.run_cycle();
+        }
+    }
+
+    /// Upticks cycle count by 1
+    fn uptick_cycle_count(&self) {
+        *self.cycle_count.borrow_mut() += 1;
+    }
+
+    /// Forms static reflex synapses from the list
+    /// of reflexes passed into Encephalon during creation
+    fn form_reflex_synapses(&self) {
+        for reflex in &self.reflexes {
+            if let Some(sensor) = self.sensory_interfaces.borrow().get(&reflex.sensor_name) {
+                if let Some(actuator) = self.actuator_interfaces.borrow().get(&reflex.actuator_name)
+                {
+                    sensor.sensory_neuron.add_static_synapse(
+                        reflex.strength,
+                        reflex.synapse_type,
+                        Rc::clone(
+                            &(Rc::clone(&actuator.actuator_neuron) as Rc<dyn NeuronicRx>)),
+                    );
+                }
+            }
+        }
     }
 
     /// Gets the elapsed cycle count of the encephalon.
@@ -144,7 +248,7 @@ impl Encephalon {
 
     /// Finds a random neuron within the vicinity of loc
     /// which allows neurons to make new random connections
-    pub fn local_random_neuron(&self, loc: &Vec<i32>) -> Option<Rc<dyn RxNeuronic>> {
+    pub fn local_random_neuron(&self, loc: &Vec<i32>) -> Option<Rc<dyn NeuronicRx>> {
         let hash_option = self.ecp_geometry.local_random_hash(loc);
 
         if let Some(hash) = hash_option {
