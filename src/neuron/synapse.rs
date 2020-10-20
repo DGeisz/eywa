@@ -229,7 +229,7 @@ impl Synapse for PlasticSynapse {
 pub struct StaticSynapse {
     strength: f32,
     synaptic_type: SynapticType,
-    target: Rc<dyn NeuronicRx>
+    target: Rc<dyn NeuronicRx>,
 }
 
 impl StaticSynapse {

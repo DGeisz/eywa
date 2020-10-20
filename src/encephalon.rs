@@ -7,7 +7,10 @@ use crate::actuator::Actuator;
 use crate::ecp_geometry::EcpGeometry;
 use crate::neuron::synapse::synaptic_strength::SynapticStrength;
 use crate::neuron::synapse::SynapticType;
-use crate::neuron::{ActuatorNeuron, ChargeCycle, PlasticNeuron, RxNeuron, SensoryNeuron, TxNeuronic, Neuronic, NeuronicRx};
+use crate::neuron::{
+    ActuatorNeuron, ChargeCycle, Neuronic, NeuronicRx, PlasticNeuron, RxNeuron, SensoryNeuron,
+    TxNeuronic,
+};
 use crate::neuron_interfaces::{ActuatorInterface, SensoryInterface};
 use crate::sensor::Sensor;
 
@@ -60,7 +63,7 @@ impl Encephalon {
         //List of reflex synapses
         reflexes: Vec<Reflex>,
     ) -> Rc<Encephalon> {
-        if ecp_geometry.get_num_sensor() != sensors.len() as u32 {
+        if ecp_geometry.get_num_sensory() != sensors.len() as u32 {
             panic!(
                 "The number of sensors passed to the encephalon doesn't \
              match the number of sensor neuron positions within the specified ecp_geometry"
@@ -220,8 +223,7 @@ impl Encephalon {
                     sensor.sensory_neuron.add_static_synapse(
                         reflex.strength,
                         reflex.synapse_type,
-                        Rc::clone(
-                            &(Rc::clone(&actuator.actuator_neuron) as Rc<dyn NeuronicRx>)),
+                        Rc::clone(&(Rc::clone(&actuator.actuator_neuron) as Rc<dyn NeuronicRx>)),
                     );
                 }
             }
