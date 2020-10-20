@@ -40,7 +40,7 @@ pub mod synaptic_strength {
 
     impl SigmoidStrength {
         /// Returns a new sigmoid strength starting with an x_value of 0
-        fn new(max_value: f32, weakness_threshold: f32, x_incr: f32) -> SigmoidStrength {
+        pub fn new(max_value: f32, weakness_threshold: f32, x_incr: f32) -> SigmoidStrength {
             SigmoidStrength {
                 x_value: 0.0,
                 x_incr,
@@ -50,7 +50,7 @@ pub mod synaptic_strength {
         }
 
         /// Returns a new sigmoid strength starting at a custom x_value
-        fn new_custom_x(
+        pub fn new_custom_x(
             max_value: f32,
             weakness_threshold: f32,
             x_incr: f32,
@@ -101,7 +101,7 @@ pub mod synaptic_strength {
     impl EmStrength {
         /// Makes an EmStrength who's strength starts at half
         /// it's max_value
-        fn new(max_value: f32, weakness_threshold: f32, alpha: f32) -> EmStrength {
+        pub fn new(max_value: f32, weakness_threshold: f32, alpha: f32) -> EmStrength {
             EmStrength {
                 strength: max_value / 2.,
                 max_value,
@@ -111,7 +111,7 @@ pub mod synaptic_strength {
         }
 
         /// Makes an EmStrength with a specific starting strength
-        fn new_custom(
+        pub fn new_custom(
             strength: f32,
             max_value: f32,
             weakness_threshold: f32,

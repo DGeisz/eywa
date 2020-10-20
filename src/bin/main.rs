@@ -1,33 +1,107 @@
-use eywa::eywa::get_uuid;
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::boxed::Box;
 
-fn main() {
-    let my_uuid = get_uuid();
-    let second = my_uuid.clone();
+use eywa::encephalon::{Encephalon, Reflex};
+use eywa::ecp_geometry::{BoxEcp, EcpGeometry};
+use eywa::{Sensor, Actuator};
+use eywa::neuron::synapse::synaptic_strength::{SigmoidStrength};
+use eywa::neuron::synapse::SynapticType;
+use eywa::neuron_interfaces::sensory_encoders;
 
-    let mut map = HashMap::new();
-
-    let vector = vec![1.1, 2.3, 3.5];
-
-    map.insert(format!("{:?}", vector), "help");
-
-    let vector2 = vec![1.1, 2.3, 3.5];
-
-    let b = 2;
-
-    let c = yote(b);
-
-    println!("This is b: {}", b);
-
-    let a = 1.clone();
-    match map.get(&format!("{:?}", vector2)) {
-        Some(strang) => println!("Got this string {}", strang),
-        None => println!("Didn't get anything"),
-    }
-    println!("This is vec: {:?}", vector);
-    println!("This is uuid: {}", second);
+fn encoder(input: f32) -> u32 {
+    sensory_encoders::linear_encoder(input, 1000.)
 }
 
-fn yote(a: i32) -> i32 {
-    a + 1
+
+fn main() {
+    let sensor_names = ["1", "2", "3", "4"];
+
+    let mut sensors: Vec<Rc<dyn Sensor>> = Vec::new();
+
+    for name in &sensor_names {
+        sensors.push(Rc::new(ConstantSensor::new(0.5, name.parse().unwrap())));
+    }
+
+    let actuator_names = ["yote", "yang", "yoder"];
+
+    let mut actuators: Vec<Rc<dyn Actuator>> = Vec::new();
+
+    for name in &actuator_names {
+        actuators.push(Rc::new(BasicActuator::new(name.parse().unwrap())));
+    }
+
+    let reflexes = vec![
+        Reflex::new("1".parse().unwrap(), "yote".parse().unwrap(), SynapticType::Excitatory, 20.),
+        Reflex::new("3".parse().unwrap(), "yang".parse().unwrap(), SynapticType::Excitatory, 20.),
+        Reflex::new("1".parse().unwrap(), "yoder".parse().unwrap(), SynapticType::Excitatory, 20.),
+        Reflex::new("2".parse().unwrap(), "yoder".parse().unwrap(), SynapticType::Excitatory, 20.),
+    ];
+
+    let ecp_g = Box::new(BoxEcp::new(125, 4, 3, 64));
+
+    let encephalon = Encephalon::new(
+        ecp_g,
+        sensors,
+        actuators,
+        10.,
+        2. / 101.,
+        Rc::new(|| {
+            Box::new(RefCell::new(SigmoidStrength::new(9., 1., 0.1)))
+        }),
+        0.1,
+        4,
+        encoder,
+        reflexes
+    );
+
+    encephalon.run_n_cycles(1000);
+}
+
+struct ConstantSensor {
+    value: f32,
+    name: String
+}
+
+impl ConstantSensor {
+    fn new(value: f32, name: String) -> ConstantSensor {
+        ConstantSensor {
+            value,
+            name
+        }
+    }
+}
+
+impl Sensor for ConstantSensor {
+    fn measure(&self) -> f32 {
+        self.value
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
+}
+
+struct BasicActuator {
+    name: String,
+    value: RefCell<f32>
+}
+
+impl BasicActuator {
+    fn new(name: String) -> BasicActuator {
+        BasicActuator {
+            name,
+            value: RefCell::new(0.0)
+        }
+    }
+}
+
+impl Actuator for BasicActuator {
+    fn set_control_value(&self, value: f32) {
+        *self.value.borrow_mut() = value;
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
 }

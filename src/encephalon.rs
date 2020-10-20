@@ -2,6 +2,7 @@ use std::boxed::Box;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::SystemTime;
 
 use crate::actuator::Actuator;
 use crate::ecp_geometry::EcpGeometry;
@@ -22,6 +23,22 @@ pub struct Reflex {
     pub actuator_name: String,
     pub synapse_type: SynapticType,
     pub strength: f32,
+}
+
+impl Reflex {
+    pub fn new(
+        sensor_name: String,
+        actuator_name: String,
+        synapse_type: SynapticType,
+        strength: f32
+    ) -> Reflex {
+        Reflex {
+            sensor_name,
+            actuator_name,
+            synapse_type,
+            strength
+        }
+    }
 }
 
 /// This is the brains of the operation (lol).
@@ -53,7 +70,7 @@ impl Encephalon {
         //Parameters for neurons
         fire_threshold: f32,
         ema_alpha: f32,
-        synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
+        synaptic_strength_generator: Rc<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
         synapse_type_threshold: f32,
         max_plastic_synapses: usize,
 
@@ -96,7 +113,6 @@ impl Encephalon {
                             Rc::clone(&new_encephalon),
                             fire_threshold,
                             ema_alpha,
-                            loc.clone(),
                         ));
 
                         let new_rx_neuron = Rc::clone(&new_neuron);
@@ -125,7 +141,7 @@ impl Encephalon {
                                 Rc::clone(&new_encephalon),
                                 fire_threshold,
                                 max_plastic_synapses,
-                                synaptic_strength_generator,
+                                Rc::clone(&synaptic_strength_generator),
                                 synapse_type_threshold,
                                 ema_alpha,
                                 loc.clone(),
@@ -148,7 +164,7 @@ impl Encephalon {
                 let new_neuron = Rc::new(SensoryNeuron::new(
                     Rc::clone(&new_encephalon),
                     max_plastic_synapses,
-                    synaptic_strength_generator,
+                    Rc::clone(&synaptic_strength_generator),
                     synapse_type_threshold,
                     ema_alpha,
                     loc.clone(),
@@ -208,6 +224,20 @@ impl Encephalon {
         }
     }
 
+    /// Runs a certain number of full cycles
+    pub fn run_n_cycles(&self, n: u32) {
+
+        let start = SystemTime::now();
+
+        for i in 0..n {
+            self.run_cycle();
+
+            if i % 100 == 0 {
+                println!("Cycle: {} Elapsed time: {}", i, start.elapsed().unwrap().as_secs_f32());
+            }
+        }
+    }
+
     /// Upticks cycle count by 1
     fn uptick_cycle_count(&self) {
         *self.cycle_count.borrow_mut() += 1;
@@ -252,13 +282,11 @@ impl Encephalon {
     /// which allows neurons to make new random connections
     pub fn local_random_neuron(&self, loc: &Vec<i32>) -> Option<Rc<dyn NeuronicRx>> {
         let hash_option = self.ecp_geometry.local_random_hash(loc);
-
         if let Some(hash) = hash_option {
             if let Some(rx_ref) = self.rx_neurons.borrow().get(&hash) {
                 return Some(Rc::clone(rx_ref));
             }
         }
-
         None
     }
 }

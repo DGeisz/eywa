@@ -1,15 +1,9 @@
-mod actuator;
-mod ecp_geometry;
-mod encephalon;
-mod neuron;
-mod neuron_interfaces;
-mod sensor;
+pub mod actuator;
+pub mod ecp_geometry;
+pub mod encephalon;
+pub mod neuron;
+pub mod neuron_interfaces;
+pub mod sensor;
 
-pub mod eywa {
-
-    use uuid::Uuid;
-
-    pub fn get_uuid() -> Uuid {
-        Uuid::new_v4()
-    }
-}
+pub use sensor::Sensor;
+pub use actuator::Actuator;

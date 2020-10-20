@@ -2,7 +2,6 @@ use super::actuator::Actuator;
 use super::neuron::SensoryNeuron;
 use crate::neuron::ActuatorNeuron;
 use crate::sensor::Sensor;
-use std::cell::RefCell;
 use std::rc::Rc;
 
 /// This is an interface between an analog
@@ -36,26 +35,26 @@ impl SensoryInterface {
     }
 }
 
-mod sensory_encoders {
+pub mod sensory_encoders {
     /// This returns the period of a single pulsed time series
     /// that would result in "input" as the peak value of an
     /// exponential moving average (ema) over that interval
     ///
     /// Here alpha is the constant of the ema
-    fn ema_encoder(measurement: f32, alpha: f32) -> u32 {
+    pub fn ema_encoder(measurement: f32, alpha: f32) -> u32 {
         (((1. - (alpha / measurement)).ln() / (1. - alpha).ln()) + 1.).round() as u32
     }
 
     /// This uses a linear function to decode sensory information.
     /// The linear function has a y intercept greater than 1, and
     /// contains the point (1, 1)
-    fn linear_encoder(measurement: f32, y_int: f32) -> u32 {
+    pub fn linear_encoder(measurement: f32, y_int: f32) -> u32 {
         (((1. - y_int) * measurement) + y_int).round() as u32
     }
 
     /// This uses an inverse function (1/x) to decode sensory information
     /// This makes most sense for decoding
-    fn inverse_encoder(measurement: f32) -> u32 {
+    pub fn inverse_encoder(measurement: f32) -> u32 {
         (1. / measurement).round() as u32
     }
 }
@@ -66,7 +65,6 @@ mod sensory_encoders {
 /// provides the mechanism to translate between the neuron's
 /// EMA and the actuator
 pub struct ActuatorInterface {
-    output: RefCell<f32>,
     pub actuator_neuron: Rc<ActuatorNeuron>,
     actuator: Rc<dyn Actuator>,
 }
@@ -77,7 +75,6 @@ impl ActuatorInterface {
         actuator: Rc<dyn Actuator>,
     ) -> ActuatorInterface {
         ActuatorInterface {
-            output: RefCell::new(0.0),
             actuator_neuron,
             actuator,
         }

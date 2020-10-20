@@ -132,28 +132,12 @@ pub enum ChargeCycle {
 }
 
 impl ChargeCycle {
+    /// Gets the next cycle type
     fn next_cycle(&self) -> ChargeCycle {
         match self {
             ChargeCycle::Even => ChargeCycle::Odd,
             ChargeCycle::Odd => ChargeCycle::Even,
         }
-    }
-
-    /// Don't let the implementation confuse you.
-    /// Think of this as a black box.  It just happens
-    /// to be the case that previous cycle and next cycle
-    /// are the same
-    fn prev_cycle(&self) -> ChargeCycle {
-        self.next_cycle()
-    }
-
-    /// Refers to the cycle before the previous cycle.
-    /// Again, don't get lost in the sauce.  It just so
-    /// happens that this cycle and prev prev cycle are the
-    /// same.  Using this methods will make prune_neurons
-    /// much more understandable
-    fn prev_prev_cycle(&self) -> ChargeCycle {
-        self.clone()
     }
 }
 
@@ -217,7 +201,7 @@ pub struct SensoryNeuron {
     plastic_synapses: RefCell<Vec<PlasticSynapse>>,
     static_synapses: RefCell<Vec<StaticSynapse>>,
     fire_tracker: RefCell<FireTracker>,
-    synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
+    synaptic_strength_generator: Rc<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
     synapse_type_threshold: f32,
     ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
     alpha: f32,        //The constant of the exponential moving average
@@ -228,7 +212,7 @@ impl SensoryNeuron {
     pub fn new(
         encephalon: Rc<Encephalon>,
         max_plastic_synapses: usize,
-        synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
+        synaptic_strength_generator: Rc<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
         synapse_type_threshold: f32,
         alpha: f32, //The constant of the exponential moving average
         loc: Vec<i32>,
@@ -258,11 +242,11 @@ impl SensoryNeuron {
 
 impl Neuronic for SensoryNeuron {
     fn run_cycle(&self) {
-        let mut fire_tracker = self.fire_tracker.borrow_mut();
-        let current_cycle = self.encephalon.get_charge_cycle();
-
         self.prune_synapses();
         self.form_plastic_synapse();
+
+        let mut fire_tracker = self.fire_tracker.borrow_mut();
+        let current_cycle = self.encephalon.get_charge_cycle();
 
         let mut ema = self.ema.borrow_mut();
 
@@ -358,7 +342,6 @@ pub struct ActuatorNeuron {
     fire_threshold: f32,
     ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
     alpha: f32,        //The constant of the exponential moving average
-    loc: Vec<i32>,
 }
 
 impl ActuatorNeuron {
@@ -366,7 +349,6 @@ impl ActuatorNeuron {
         encephalon: Rc<Encephalon>,
         fire_threshold: f32,
         alpha: f32, //The constant of the exponential moving average
-        loc: Vec<i32>,
     ) -> ActuatorNeuron {
         ActuatorNeuron {
             encephalon,
@@ -375,7 +357,6 @@ impl ActuatorNeuron {
             fire_threshold,
             ema: RefCell::new(0.0),
             alpha,
-            loc,
         }
     }
 
@@ -433,7 +414,7 @@ pub struct PlasticNeuron {
     max_plastic_synapses: usize,
     plastic_synapses: RefCell<Vec<PlasticSynapse>>,
     static_synapses: RefCell<Vec<StaticSynapse>>,
-    synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>, //Box<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
+    synaptic_strength_generator: Rc<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
     synapse_type_threshold: f32,
     ema: RefCell<f32>, //Exponential moving average, ie T(n+1) = αI + (1 - α)T(n)
     alpha: f32,        //The constant of the exponential moving average
@@ -445,7 +426,7 @@ impl PlasticNeuron {
         encephalon: Rc<Encephalon>,
         fire_threshold: f32,
         max_plastic_synapses: usize,
-        synaptic_strength_generator: fn() -> Box<RefCell<dyn SynapticStrength>>,
+        synaptic_strength_generator: Rc<dyn Fn() -> Box<RefCell<dyn SynapticStrength>>>,
         synapse_type_threshold: f32,
         alpha: f32, //The constant of the exponential moving average
         loc: Vec<i32>,
@@ -469,12 +450,12 @@ impl PlasticNeuron {
 
 impl Neuronic for PlasticNeuron {
     fn run_cycle(&self) {
+        self.prune_synapses();
+        self.form_plastic_synapse();
+
         let current_cycle = self.encephalon.get_charge_cycle();
         let mut internal_charge = self.internal_charge.borrow_mut();
         let mut fire_tracker = self.fire_tracker.borrow_mut();
-
-        self.prune_synapses();
-        self.form_plastic_synapse();
 
         let mut ema = self.ema.borrow_mut();
 
