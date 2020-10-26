@@ -276,7 +276,13 @@ impl EcpGeometry for BoxEcp {
                     let rand_z =
                         random_gen.gen_range(bottom_z, bottom_z + nearby_side_length_i32 - 1);
 
-                    return Some(self.loc_hash(&vec![rand_x, rand_y, rand_z]));
+                    let new_loc = vec![rand_x, rand_y, rand_z];
+
+                    return if rand_x == *x && rand_y == *y && rand_z == *z {
+                        self.local_random_hash(loc)
+                    } else {
+                        Some(self.loc_hash(&new_loc))
+                    }
                 }
             }
         }

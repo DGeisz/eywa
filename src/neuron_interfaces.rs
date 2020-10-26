@@ -2,19 +2,20 @@ use super::actuator::Actuator;
 use super::neuron::SensoryNeuron;
 use crate::neuron::ActuatorNeuron;
 use crate::sensor::Sensor;
+use std::boxed::Box;
 use std::rc::Rc;
 
 /// This is an interface between an analog
 /// sensor and its corresponding sensory
 pub struct SensoryInterface {
-    sensor: Rc<dyn Sensor>,
+    sensor: Box<dyn Sensor>,
     pub sensory_neuron: Rc<SensoryNeuron>,
     encoder: fn(f32) -> u32,
 }
 
 impl SensoryInterface {
     pub fn new(
-        sensor: Rc<dyn Sensor>,
+        sensor: Box<dyn Sensor>,
         encoder: fn(f32) -> u32,
         sensory_neuron: Rc<SensoryNeuron>,
     ) -> SensoryInterface {
@@ -29,7 +30,7 @@ impl SensoryInterface {
     /// from its sensor, encodes that measurement into
     /// a neuronic period, and sends that period to its
     /// sensory_neuron
-    pub fn run_cycle(&self) {
+    pub fn run_cycle(&mut self) {
         self.sensory_neuron
             .set_period((self.encoder)(self.sensor.measure()));
     }
@@ -66,13 +67,13 @@ pub mod sensory_encoders {
 /// EMA and the actuator
 pub struct ActuatorInterface {
     pub actuator_neuron: Rc<ActuatorNeuron>,
-    actuator: Rc<dyn Actuator>,
+    actuator: Box<dyn Actuator>,
 }
 
 impl ActuatorInterface {
     pub fn new(
         actuator_neuron: Rc<ActuatorNeuron>,
-        actuator: Rc<dyn Actuator>,
+        actuator: Box<dyn Actuator>,
     ) -> ActuatorInterface {
         ActuatorInterface {
             actuator_neuron,

@@ -64,8 +64,8 @@ impl Encephalon {
     /// Creates a new encephalon.
     pub fn new(
         ecp_geometry: Box<dyn EcpGeometry>,
-        mut sensors: Vec<Rc<dyn Sensor>>,
-        mut actuators: Vec<Rc<dyn Actuator>>,
+        mut sensors: Vec<Box<dyn Sensor>>,
+        mut actuators: Vec<Box<dyn Actuator>>,
 
         //Parameters for neurons
         fire_threshold: f32,
@@ -129,7 +129,7 @@ impl Encephalon {
                                 curr_actuator.get_name(),
                                 ActuatorInterface::new(
                                     Rc::clone(&new_neuron),
-                                    Rc::clone(&curr_actuator),
+                                    curr_actuator,
                                 ),
                             );
                         }
@@ -181,7 +181,7 @@ impl Encephalon {
                     new_encephalon.sensory_interfaces.borrow_mut().insert(
                         curr_sensor.get_name(),
                         SensoryInterface::new(
-                            Rc::clone(&curr_sensor),
+                            curr_sensor,
                             sensory_encoder,
                             Rc::clone(&new_neuron),
                         ),
@@ -204,7 +204,7 @@ impl Encephalon {
         self.uptick_cycle_count();
 
         // Cycle sensory interfaces
-        for sensory_interface in self.sensory_interfaces.borrow().values() {
+        for sensory_interface in self.sensory_interfaces.borrow_mut().values_mut() {
             sensory_interface.run_cycle();
         }
 

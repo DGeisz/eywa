@@ -5,7 +5,16 @@ authors = ["Danny Geisz <dannygeisz@berkeley.edu>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "main"
+path = "src/bin/main.rs"
+
+[[bin]]
+name = "hell-mazer"
+path = "src/bin/hell_mazer_server.rs"
 
 [dependencies]
 uuid = { version = "0.8.1", features = ["v4"] }
 rand = "0.7.3"
+tokio = { version = "0.2", features = ["full"] }
+warp = "0.2"

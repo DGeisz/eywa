@@ -17,18 +17,18 @@ fn encoder(input: f32) -> u32 {
 fn main() {
     let sensor_names = ["1", "2", "3", "4"];
 
-    let mut sensors: Vec<Rc<dyn Sensor>> = Vec::new();
+    let mut sensors: Vec<Box<dyn Sensor>> = Vec::new();
 
     for name in &sensor_names {
-        sensors.push(Rc::new(ConstantSensor::new(0.5, name.parse().unwrap())));
+        sensors.push(Box::new(ConstantSensor::new(0.5, name.parse().unwrap())));
     }
 
     let actuator_names = ["yote", "yang", "yoder"];
 
-    let mut actuators: Vec<Rc<dyn Actuator>> = Vec::new();
+    let mut actuators: Vec<Box<dyn Actuator>> = Vec::new();
 
     for name in &actuator_names {
-        actuators.push(Rc::new(BasicActuator::new(name.parse().unwrap())));
+        actuators.push(Box::new(BasicActuator::new(name.parse().unwrap())));
     }
 
     let reflexes = vec![
@@ -50,12 +50,12 @@ fn main() {
             Box::new(RefCell::new(SigmoidStrength::new(9., 1., 0.1)))
         }),
         0.1,
-        4,
+        64,
         encoder,
         reflexes
     );
 
-    encephalon.run_n_cycles(1000);
+    encephalon.run_n_cycles(10000);
 }
 
 struct ConstantSensor {
@@ -73,7 +73,7 @@ impl ConstantSensor {
 }
 
 impl Sensor for ConstantSensor {
-    fn measure(&self) -> f32 {
+    fn measure(&mut self) -> f32 {
         self.value
     }
 
