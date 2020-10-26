@@ -1,18 +1,17 @@
+use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::boxed::Box;
 
-use eywa::encephalon::{Encephalon, Reflex};
 use eywa::ecp_geometry::{BoxEcp, EcpGeometry};
-use eywa::{Sensor, Actuator};
-use eywa::neuron::synapse::synaptic_strength::{SigmoidStrength};
+use eywa::encephalon::{Encephalon, Reflex};
+use eywa::neuron::synapse::synaptic_strength::SigmoidStrength;
 use eywa::neuron::synapse::SynapticType;
 use eywa::neuron_interfaces::sensory_encoders;
+use eywa::{Actuator, Sensor};
 
 fn encoder(input: f32) -> u32 {
     sensory_encoders::linear_encoder(input, 1000.)
 }
-
 
 fn main() {
     let sensor_names = ["1", "2", "3", "4"];
@@ -32,10 +31,30 @@ fn main() {
     }
 
     let reflexes = vec![
-        Reflex::new("1".parse().unwrap(), "yote".parse().unwrap(), SynapticType::Excitatory, 20.),
-        Reflex::new("3".parse().unwrap(), "yang".parse().unwrap(), SynapticType::Excitatory, 20.),
-        Reflex::new("1".parse().unwrap(), "yoder".parse().unwrap(), SynapticType::Excitatory, 20.),
-        Reflex::new("2".parse().unwrap(), "yoder".parse().unwrap(), SynapticType::Excitatory, 20.),
+        Reflex::new(
+            "1".parse().unwrap(),
+            "yote".parse().unwrap(),
+            SynapticType::Excitatory,
+            20.,
+        ),
+        Reflex::new(
+            "3".parse().unwrap(),
+            "yang".parse().unwrap(),
+            SynapticType::Excitatory,
+            20.,
+        ),
+        Reflex::new(
+            "1".parse().unwrap(),
+            "yoder".parse().unwrap(),
+            SynapticType::Excitatory,
+            20.,
+        ),
+        Reflex::new(
+            "2".parse().unwrap(),
+            "yoder".parse().unwrap(),
+            SynapticType::Excitatory,
+            20.,
+        ),
     ];
 
     let ecp_g = Box::new(BoxEcp::new(125, 4, 3, 64));
@@ -46,13 +65,11 @@ fn main() {
         actuators,
         10.,
         2. / 101.,
-        Rc::new(|| {
-            Box::new(RefCell::new(SigmoidStrength::new(9., 1., 0.1)))
-        }),
+        Rc::new(|| Box::new(RefCell::new(SigmoidStrength::new(9., 1., 0.1)))),
         0.1,
         64,
         encoder,
-        reflexes
+        reflexes,
     );
 
     encephalon.run_n_cycles(10000);
@@ -60,15 +77,12 @@ fn main() {
 
 struct ConstantSensor {
     value: f32,
-    name: String
+    name: String,
 }
 
 impl ConstantSensor {
     fn new(value: f32, name: String) -> ConstantSensor {
-        ConstantSensor {
-            value,
-            name
-        }
+        ConstantSensor { value, name }
     }
 }
 
@@ -84,14 +98,14 @@ impl Sensor for ConstantSensor {
 
 struct BasicActuator {
     name: String,
-    value: RefCell<f32>
+    value: RefCell<f32>,
 }
 
 impl BasicActuator {
     fn new(name: String) -> BasicActuator {
         BasicActuator {
             name,
-            value: RefCell::new(0.0)
+            value: RefCell::new(0.0),
         }
     }
 }

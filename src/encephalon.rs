@@ -30,13 +30,13 @@ impl Reflex {
         sensor_name: String,
         actuator_name: String,
         synapse_type: SynapticType,
-        strength: f32
+        strength: f32,
     ) -> Reflex {
         Reflex {
             sensor_name,
             actuator_name,
             synapse_type,
-            strength
+            strength,
         }
     }
 }
@@ -127,10 +127,7 @@ impl Encephalon {
                         if let Some(curr_actuator) = curr_actuator_option {
                             new_encephalon.actuator_interfaces.borrow_mut().insert(
                                 curr_actuator.get_name(),
-                                ActuatorInterface::new(
-                                    Rc::clone(&new_neuron),
-                                    curr_actuator,
-                                ),
+                                ActuatorInterface::new(Rc::clone(&new_neuron), curr_actuator),
                             );
                         }
                     }
@@ -180,11 +177,7 @@ impl Encephalon {
                 if let Some(curr_sensor) = curr_sensor_option {
                     new_encephalon.sensory_interfaces.borrow_mut().insert(
                         curr_sensor.get_name(),
-                        SensoryInterface::new(
-                            curr_sensor,
-                            sensory_encoder,
-                            Rc::clone(&new_neuron),
-                        ),
+                        SensoryInterface::new(curr_sensor, sensory_encoder, Rc::clone(&new_neuron)),
                     );
                 }
 
@@ -226,14 +219,17 @@ impl Encephalon {
 
     /// Runs a certain number of full cycles
     pub fn run_n_cycles(&self, n: u32) {
-
         let start = SystemTime::now();
 
         for i in 0..n {
             self.run_cycle();
 
             if i % 100 == 0 {
-                println!("Cycle: {} Elapsed time: {}", i, start.elapsed().unwrap().as_secs_f32());
+                println!(
+                    "Cycle: {} Elapsed time: {}",
+                    i,
+                    start.elapsed().unwrap().as_secs_f32()
+                );
             }
         }
     }

@@ -282,7 +282,7 @@ impl EcpGeometry for BoxEcp {
                         self.local_random_hash(loc)
                     } else {
                         Some(self.loc_hash(&new_loc))
-                    }
+                    };
                 }
             }
         }
