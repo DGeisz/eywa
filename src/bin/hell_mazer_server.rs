@@ -16,15 +16,15 @@ use eywa::{
 
 // Encephalon Parameters
 const FIRE_THRESHOLD: f32 = 10.;
-const EMA_ALPHA: f32 = 2. / 101.;
+const EMA_ALPHA: f32 = 2. / 100.;
 const SYNAPTIC_TYPE_THRESHOLD: f32 = 0.1;
 const MAX_PLASTIC_SYNAPSES: usize = 64;
 
-const SIGMOID_MAX_VAL: f32 = 9.0;
+const SIGMOID_MAX_VAL: f32 = 15.0;
 const WEAKNESS_THRESHOLD: f32 = 1.0;
 const X_INCR: f32 = 0.1;
 
-const ENCODER_Y_INTERCEPT: f32 = 100.0;
+const ENCODER_Y_INTERCEPT: f32 = 20.0;
 
 fn encoder(input: f32) -> u32 {
     sensory_encoders::linear_encoder(input, ENCODER_Y_INTERCEPT)
@@ -78,7 +78,7 @@ async fn main() {
     // Initialize reflexes
 
     //Make ecp_geometry
-    let ecp_geometry = Box::new(BoxEcp::new(125, 8, 4, 27));
+    let ecp_geometry = Box::new(BoxEcp::new(27, 8, 4, 27));
 
     tokio::spawn(async move {
         let sensors = vec![
@@ -103,6 +103,12 @@ async fn main() {
         ];
 
         let reflexes = vec![
+            //Forward motion
+            // Reflex::new(
+            //
+            // )
+
+
             //Forward Pain
             Reflex::new(
                 forward_pain_name.clone(),
@@ -255,6 +261,8 @@ async fn main() {
             let mut sender = sensor_sender.clone();
             let watcher = actuator_watcher.clone();
 
+            // println!("Receieved: {:?}", sensory_inputs);
+
             // Send in latest sensory inputs
             if let Err(e) = sender.send_all(sensory_inputs) {
                 println!("Send error: {:?}", e);
@@ -267,7 +275,7 @@ async fn main() {
     warp::serve(sensactio).run(([127, 0, 0, 1], 4200)).await;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct HttpSensorBody {
     forward: f32,
     forward_pain: f32,

@@ -9,7 +9,7 @@ use synapse::{PlasticSynapse, StaticSynapse, Synapse};
 
 /// All neurons implement the Neuronic trait
 pub trait Neuronic {
-    fn run_cycle(&self);
+    fn run_cycle(&self) -> f32;
 }
 
 /// Neurons that transmit (hence Tx) impulses to
@@ -241,7 +241,7 @@ impl SensoryNeuron {
 }
 
 impl Neuronic for SensoryNeuron {
-    fn run_cycle(&self) {
+    fn run_cycle(&self) -> f32 {
         self.prune_synapses();
         self.form_plastic_synapse();
 
@@ -260,6 +260,8 @@ impl Neuronic for SensoryNeuron {
             *ema = (1.0 - self.alpha) * (*ema);
             fire_tracker.set_tracker(current_cycle, false);
         }
+
+        ema.clone()
     }
 }
 
@@ -367,7 +369,7 @@ impl ActuatorNeuron {
 }
 
 impl Neuronic for ActuatorNeuron {
-    fn run_cycle(&self) {
+    fn run_cycle(&self) -> f32 {
         let current_cycle = self.encephalon.get_charge_cycle();
         let mut internal_charge = self.internal_charge.borrow_mut();
         let mut ema = self.ema.borrow_mut();
@@ -382,6 +384,8 @@ impl Neuronic for ActuatorNeuron {
         }
 
         internal_charge.reset_charge(current_cycle);
+
+        ema.clone()
     }
 }
 
@@ -449,7 +453,7 @@ impl PlasticNeuron {
 }
 
 impl Neuronic for PlasticNeuron {
-    fn run_cycle(&self) {
+    fn run_cycle(&self) -> f32 {
         self.prune_synapses();
         self.form_plastic_synapse();
 
@@ -468,7 +472,11 @@ impl Neuronic for PlasticNeuron {
             fire_tracker.set_tracker(current_cycle, false);
         }
 
+        // println!("This is current ema: {}, and fire_count: {}", *ema, fire_count);
+
         internal_charge.reset_charge(current_cycle);
+
+        ema.clone()
     }
 }
 

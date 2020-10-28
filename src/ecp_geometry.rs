@@ -185,7 +185,7 @@ impl EcpGeometry for BoxEcp {
                         let is_actuator = plane_position as u32 <= self.num_actuator;
 
                         if is_actuator {
-                            Some((new_loc.clone(), self.loc_hash(&new_loc), RxNeuron::Plastic))
+                            Some((new_loc.clone(), self.loc_hash(&new_loc), RxNeuron::Actuator))
                         } else {
                             Some((new_loc.clone(), self.loc_hash(&new_loc), RxNeuron::Plastic))
                         }
