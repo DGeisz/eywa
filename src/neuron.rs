@@ -42,8 +42,7 @@ pub trait TxNeuronic {
 /// Neurons that receive (hence Rx) impulses from
 /// other neurons implement the RxNeuronic trait
 pub trait RxNeuronic {
-    /// Receives an impulse from a synapse to
-    /// which it is connected
+
     fn intake_synaptic_impulse(&self, impulse: f32);
 
     /// Returns true if the neuron fired on the

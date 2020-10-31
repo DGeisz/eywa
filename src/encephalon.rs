@@ -109,7 +109,7 @@ impl Encephalon {
             if let Some((loc, hash, neuron_type)) = &ecp_rx_option {
                 match neuron_type {
                     RxNeuron::Actuator => {
-                        println!("Made actuator neuron!");
+                        // println!("Made actuator neuron!");
                         let new_neuron = Rc::new(ActuatorNeuron::new(
                             Rc::clone(&new_encephalon),
                             fire_threshold,
@@ -133,7 +133,7 @@ impl Encephalon {
                         }
                     }
                     RxNeuron::Plastic => {
-                        println!("Made plastic neuron!");
+                        // println!("Made plastic neuron!");
                         new_encephalon.rx_neurons.borrow_mut().insert(
                             hash.clone(),
                             Rc::new(PlasticNeuron::new(
@@ -208,30 +208,32 @@ impl Encephalon {
             actuator_interface.run_cycle();
         }
 
-        let mut sensor_ema_total: f32 = 0.0;
+        // let mut sensor_ema_total: f32 = 0.0;
 
         // Cycle sensory neurons
         for sensory_neuron in self.sensory_neurons.borrow().values() {
-            sensor_ema_total += sensory_neuron.run_cycle();
+            // sensor_ema_total += sensory_neuron.run_cycle();
+            sensory_neuron.run_cycle();
         }
 
-        let sensor_ema_average = sensor_ema_total / self.sensory_neurons.borrow().len() as f32;
+        // let sensor_ema_average = sensor_ema_total / self.sensory_neurons.borrow().len() as f32;
 
-        let mut rx_ema_total: f32 = 0.;
+        // let mut rx_ema_total: f32 = 0.;
 
         // Cycle rx neurons
         for rx_neuron in self.rx_neurons.borrow().values() {
-            rx_ema_total += rx_neuron.run_cycle();
+            // rx_ema_total += rx_neuron.run_cycle();
+            rx_neuron.run_cycle();
         }
 
-        let rx_ema_average = rx_ema_total / self.rx_neurons.borrow().len() as f32;
+        // let rx_ema_average = rx_ema_total / self.rx_neurons.borrow().len() as f32;
 
-        println!("Sensor EMA: {}, Rx EMA: {}", sensor_ema_average, rx_ema_average);
+        // println!("Sensor EMA: {}, Rx EMA: {}", sensor_ema_average, rx_ema_average);
     }
 
     /// Runs a certain number of full cycles
     pub fn run_n_cycles(&self, n: u32) {
-        let start = SystemTime::now();
+        let mut start = SystemTime::now();
 
         for i in 0..n {
             self.run_cycle();
@@ -242,6 +244,7 @@ impl Encephalon {
                     i,
                     start.elapsed().unwrap().as_secs_f32()
                 );
+                start = SystemTime::now();
             }
         }
     }

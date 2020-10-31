@@ -57,7 +57,7 @@ fn main() {
         ),
     ];
 
-    let ecp_g = Box::new(BoxEcp::new(125, 4, 3, 64));
+    let ecp_g = Box::new(BoxEcp::new(10_u32.pow(3), 4, 3, 216));
 
     let encephalon = Encephalon::new(
         ecp_g,
@@ -72,7 +72,7 @@ fn main() {
         reflexes,
     );
 
-    encephalon.run_n_cycles(10000);
+    encephalon.run_n_cycles(3000);
 }
 
 struct ConstantSensor {
